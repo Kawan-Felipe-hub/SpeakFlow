@@ -583,5 +583,15 @@ def review_flashcard(
     )
 
 
+@router.delete("/flashcards/{flashcard_id}/", response={204: None, 404: ErrorOut})
+def delete_flashcard(request: HttpRequest, flashcard_id: int) -> tuple[int, None] | tuple[int, ErrorOut]:
+    user = require_user(request)
+    card = FlashCard.objects.filter(id=flashcard_id, user=user).first()
+    if card is None:
+        return 404, ErrorOut(detail="Flashcard não encontrado.")
+    card.delete()
+    return 204, None
+
+
 api.add_router("", router)
 

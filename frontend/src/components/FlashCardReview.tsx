@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Volume2, RotateCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Volume2, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { FlashCard } from '@/types/api';
 
@@ -7,11 +7,24 @@ interface FlashCardReviewProps {
   flashcard: FlashCard;
   onReview: (quality: number) => void;
   onNext?: () => void;
+  onDelete?: () => void;
 }
 
-export const FlashCardReview = ({ flashcard, onReview, onNext }: FlashCardReviewProps) => {
+export const FlashCardReview = ({ flashcard, onReview, onNext, onDelete }: FlashCardReviewProps) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
+
+  // Reset states when flashcard changes
+  useEffect(() => {
+    setIsFlipped(false);
+    setHasReviewed(false);
+  }, [flashcard.id]);
+
+  const handleDelete = () => {
+    if (window.confirm('Tem certeza que deseja excluir este flashcard?')) {
+      onDelete?.();
+    }
+  };
 
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
@@ -103,6 +116,19 @@ export const FlashCardReview = ({ flashcard, onReview, onNext }: FlashCardReview
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Delete button */}
+              {onDelete && (
+                <Button
+                  onClick={handleDelete}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 size={16} className="mr-2" />
+                  Excluir cartão
+                </Button>
               )}
             </>
           ) : (

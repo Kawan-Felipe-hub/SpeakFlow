@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, RotateCcw, CheckCircle } from 'lucide-react';
+import { BookOpen, RotateCcw, CheckCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { FlashCardReview } from '@/components/FlashCardReview';
 import { flashcardApi } from '@/lib/api';
@@ -13,6 +13,8 @@ export default function FlashcardsPage() {
   const queryClient = useQueryClient();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [totalInitialCards, setTotalInitialCards] = useState(0);
+  const [reviewedCount, setReviewedCount] = useState(0);
 
   // Query due flashcards
   const { data: dueFlashcards = [], isLoading, error, refetch } = useQuery({
@@ -31,17 +33,23 @@ export default function FlashcardsPage() {
     mutationFn: (data: ReviewRequest) => flashcardApi.reviewFlashcard(data),
     onSuccess: () => {
       toast.success('Flashcard revisado!');
+      setReviewedCount(prev => prev + 1);
+      
+      // Move to next card BEFORE invalidating queries
+      setCurrentIndex(prev => {
+        const newLength = dueFlashcards.length - 1;
+        if (newLength <= 0) {
+          setIsReviewing(false);
+          setReviewedCount(0);
+          return 0;
+        }
+        // Move to next card, but don't exceed the new array length
+        return Math.min(prev + 1, newLength - 1);
+      });
+      
+      // Invalidate queries after adjusting index
       queryClient.invalidateQueries({ queryKey: ['due-flashcards'] });
       queryClient.invalidateQueries({ queryKey: ['flashcards'] });
-      
-      // Move to next card or finish review
-      if (currentIndex < dueFlashcards.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-      } else {
-        setIsReviewing(false);
-        setCurrentIndex(0);
-        refetch();
-      }
     },
     onError: (error: any) => {
       const message = error.response?.data?.detail || 'Erro ao revisar flashcard';
@@ -49,10 +57,55 @@ export default function FlashcardsPage() {
     },
   });
 
+  // Mutation for deleting flashcards
+  const deleteMutation = useMutation({
+    mutationFn: (flashcardId: number) => flashcardApi.deleteFlashcard(flashcardId),
+    onSuccess: () => {
+      toast.success('Flashcard excluído!');
+      
+      // Adjust current index BEFORE invalidating queries
+      if (isReviewing) {
+        setCurrentIndex(prev => {
+          const newLength = dueFlashcards.length - 1;
+          if (newLength <= 0) {
+            setIsReviewing(false);
+            setReviewedCount(0);
+            return 0;
+          }
+          // Stay at same index (next card shifts into this position)
+          return Math.min(prev, newLength - 1);
+        });
+      }
+      
+      // Invalidate queries after adjusting index
+      queryClient.invalidateQueries({ queryKey: ['due-flashcards'] });
+      queryClient.invalidateQueries({ queryKey: ['flashcards'] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Erro ao excluir flashcard';
+      toast.error(message);
+    },
+  });
+
+  const handleDelete = (flashcardId: number) => {
+    if (window.confirm('Tem certeza que deseja excluir este flashcard?')) {
+      deleteMutation.mutate(flashcardId);
+    }
+  };
+
+  const handleDeleteFromReview = () => {
+    const currentCard = dueFlashcards[currentIndex];
+    if (currentCard) {
+      deleteMutation.mutate(currentCard.id);
+    }
+  };
+
   const handleStartReview = () => {
     if (dueFlashcards.length === 0) return;
     setIsReviewing(true);
     setCurrentIndex(0);
+    setTotalInitialCards(dueFlashcards.length);
+    setReviewedCount(0);
   };
 
   const handleReview = (quality: number) => {
@@ -69,9 +122,17 @@ export default function FlashcardsPage() {
     } else {
       setIsReviewing(false);
       setCurrentIndex(0);
+      setTotalInitialCards(0);
       refetch();
     }
   };
+
+  // Ensure currentIndex is always within bounds when array changes
+  useEffect(() => {
+    if (isReviewing && dueFlashcards.length > 0 && currentIndex >= dueFlashcards.length) {
+      setCurrentIndex(dueFlashcards.length - 1);
+    }
+  }, [dueFlashcards.length, currentIndex, isReviewing]);
 
   const currentCard = dueFlashcards[currentIndex];
 
@@ -149,7 +210,7 @@ export default function FlashcardsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Progresso da revisão</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {isReviewing ? `${currentIndex + 1}/${dueFlashcards.length}` : '0/' + dueFlashcards.length}
+                  {isReviewing ? `${reviewedCount}/${totalInitialCards}` : `0/${dueFlashcards.length}`}
                 </p>
               </div>
             </div>
@@ -197,13 +258,13 @@ export default function FlashcardsPage() {
                   Progresso da revisão
                 </span>
                 <span className="text-sm text-gray-500">
-                  {currentIndex + 1} / {dueFlashcards.length}
+                  {reviewedCount} / {totalInitialCards}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentIndex + 1) / dueFlashcards.length) * 100}%` }}
+                  style={{ width: `${(reviewedCount / totalInitialCards) * 100}%` }}
                 />
               </div>
             </div>
@@ -214,6 +275,7 @@ export default function FlashcardsPage() {
                 flashcard={currentCard}
                 onReview={handleReview}
                 onNext={handleNext}
+                onDelete={handleDeleteFromReview}
               />
             )}
           </div>
@@ -241,6 +303,14 @@ export default function FlashcardsPage() {
                           <span>Próxima revisão: {new Date(flashcard.next_review_at).toLocaleDateString('pt-BR')}</span>
                         </div>
                       </div>
+                      <Button
+                        onClick={() => handleDelete(flashcard.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
                     </div>
                   </div>
                 ))}
