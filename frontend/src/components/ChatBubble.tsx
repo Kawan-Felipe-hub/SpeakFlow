@@ -1,4 +1,5 @@
 import { User, Bot } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { formatDateTime } from '@/lib/utils';
 import { PronunciationBadge } from './PronunciationBadge';
 import { SessionMessage } from '@/types/api';
@@ -6,10 +7,20 @@ import { SessionMessage } from '@/types/api';
 interface ChatBubbleProps {
   message: SessionMessage;
   showPronunciation?: boolean;
+  autoplay?: boolean;
 }
 
-export const ChatBubble = ({ message, showPronunciation = true }: ChatBubbleProps) => {
+export const ChatBubble = ({ message, showPronunciation = true, autoplay = false }: ChatBubbleProps) => {
   const isUser = message.role === 'user';
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (autoplay && message.audio_url && audioRef.current) {
+      audioRef.current.play().catch(err => {
+        console.log('Autoplay prevented by browser:', err);
+      });
+    }
+  }, [autoplay, message.audio_url]);
   
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} mb-4`}>
@@ -32,9 +43,10 @@ export const ChatBubble = ({ message, showPronunciation = true }: ChatBubbleProp
         <div className={`chat-bubble ${isUser ? 'user' : 'assistant'}`}>
           <p className="text-sm whitespace-pre-wrap">{message.text}</p>
           
-          {/* Audio player if available */}
-          {message.audio_url && (
+          {/* Audio player if available (only for assistant) */}
+          {!isUser && message.audio_url && (
             <audio 
+              ref={audioRef}
               controls 
               className="mt-2 w-full h-8"
               src={message.audio_url}

@@ -106,6 +106,28 @@ def get_session(request: HttpRequest, session_id: int) -> tuple[int, VoiceSessio
     )
 
 
+@router.get("/sessions/{session_id}/messages/", response={200: list[SessionMessageOut], 404: ErrorOut})
+def get_session_messages(request: HttpRequest, session_id: int) -> tuple[int, list[SessionMessageOut]] | tuple[int, ErrorOut]:
+    user = require_user(request)
+    session = VoiceSession.objects.filter(id=session_id, user=user).first()
+    if session is None:
+        return 404, ErrorOut(detail="Session not found.")
+    
+    messages = SessionMessage.objects.filter(session=session).order_by("created_at")
+    return 200, [
+        SessionMessageOut(
+            id=m.id,
+            session_id=m.session_id,
+            role=m.role,
+            text=m.text,
+            audio_url=m.audio_url,
+            pronunciation_score=m.pronunciation_score,
+            created_at=m.created_at,
+        )
+        for m in messages
+    ]
+
+
 @router.post("/sessions/", response={201: VoiceSessionOut})
 def create_session(request: HttpRequest, payload: VoiceSessionCreateIn) -> tuple[int, VoiceSessionOut]:
     user = require_user(request)
@@ -120,6 +142,18 @@ def create_session(request: HttpRequest, payload: VoiceSessionCreateIn) -> tuple
         topic=s.topic,
         total_messages=s.total_messages,
     )
+
+
+@router.delete("/sessions/{session_id}/", response={204: None, 404: ErrorOut})
+def delete_session(request: HttpRequest, session_id: int) -> tuple[int, None] | tuple[int, ErrorOut]:
+    user = require_user(request)
+    session = VoiceSession.objects.filter(id=session_id, user=user).first()
+    if session is None:
+        return 404, ErrorOut(detail="Session not found.")
+    session.delete()
+    user.total_sessions = VoiceSession.objects.filter(user=user).count()
+    user.save(update_fields=["total_sessions"])
+    return 204, None
 
 
 def _save_audio(file: UploadedFile) -> str:

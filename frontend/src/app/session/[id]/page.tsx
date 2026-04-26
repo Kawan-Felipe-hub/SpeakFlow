@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Send, Volume2 } from 'lucide-react';
+import { ArrowLeft, Send, Volume2, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { VoiceButton } from '@/components/VoiceButton';
 import { ChatBubble } from '@/components/ChatBubble';
@@ -21,6 +21,8 @@ export default function SessionPage() {
 
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
+  const [lastAssistantMessageId, setLastAssistantMessageId] = useState<number | null>(null);
 
   // Query session messages
   const { data: sessionData, isLoading: isLoadingSession } = useQuery({
@@ -31,6 +33,23 @@ export default function SessionPage() {
     },
     enabled: !!sessionId,
   });
+
+  // Query session messages
+  const { data: sessionMessages, isLoading: isLoadingMessages } = useQuery({
+    queryKey: ['session-messages', sessionId],
+    queryFn: async () => {
+      const response = await sessionApi.getSessionMessages(sessionId);
+      return response.data;
+    },
+    enabled: !!sessionId,
+  });
+
+  // Load messages when sessionMessages data is available
+  useEffect(() => {
+    if (sessionMessages && sessionMessages.length > 0) {
+      setMessages(sessionMessages);
+    }
+  }, [sessionMessages]);
 
   // Mutation for sending messages
   const sendMessageMutation = useMutation({
@@ -73,6 +92,9 @@ export default function SessionPage() {
       };
 
       setMessages(prev => [...prev, userMessage, assistantMessage]);
+      
+      // Track the last assistant message for autoplay
+      setLastAssistantMessageId(assistantMessage.id);
       
       // Show new flashcards notification
       if (data.new_flashcards.length > 0) {
@@ -155,6 +177,17 @@ export default function SessionPage() {
                 </p>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={autoplay ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAutoplay(!autoplay)}
+                className="flex items-center gap-2"
+              >
+                <PlayCircle size={16} />
+                <span className="hidden sm:inline">Autoplay</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -181,6 +214,7 @@ export default function SessionPage() {
                   key={message.id}
                   message={message}
                   showPronunciation={message.role === 'user'}
+                  autoplay={autoplay && message.role === 'assistant' && message.id === lastAssistantMessageId}
                 />
               ))}
             </div>

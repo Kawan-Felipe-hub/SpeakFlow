@@ -1,21 +1,47 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Plus, Calendar, BookOpen, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Calendar, BookOpen, Zap, Trash2, CheckSquare, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Link } from '@/components/ui/Link';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, sessionApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { authApi } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { VoiceSession } from '@/types/api';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [showSessionManager, setShowSessionManager] = useState(false);
+  const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
   
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboardApi.getStats().then(res => res.data),
+  });
+
+  const { data: allSessions, isLoading: sessionsLoading } = useQuery({
+    queryKey: ['all-sessions'],
+    queryFn: () => sessionApi.getSessions().then(res => Array.isArray(res.data) ? res.data : []),
+    enabled: showSessionManager,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (sessionIds: number[]) => {
+      await Promise.all(sessionIds.map(id => sessionApi.deleteSession(id)));
+    },
+    onSuccess: () => {
+      toast.success('Sessões deletadas com sucesso');
+      setSelectedSessions(new Set());
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+    },
+    onError: () => {
+      toast.error('Erro ao deletar sessões');
+    },
   });
 
   const handleCreateSession = async () => {
@@ -25,6 +51,7 @@ export default function DashboardPage() {
       
       // Pega o ID numérico real que o Django gerou e redireciona
       const idReal = response.data.id;
+      console.log('Sessão criada com ID:', idReal);
       router.push(`/session/${idReal}`);
     } catch (error) {
       console.error("Erro ao criar sessão", error);
@@ -34,6 +61,39 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     authApi.logout();
+  };
+
+  const toggleSessionSelection = (sessionId: number) => {
+    setSelectedSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedSessions.size === 0) {
+      toast.error('Selecione pelo menos uma sessão');
+      return;
+    }
+    if (confirm(`Tem certeza que deseja deletar ${selectedSessions.size} sessão(ões)?`)) {
+      deleteMutation.mutate(Array.from(selectedSessions));
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (allSessions && Array.isArray(allSessions) && allSessions.length > 0) {
+      const allIds = allSessions.map((s: VoiceSession) => s.id);
+      setSelectedSessions(new Set(allIds));
+    }
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedSessions(new Set());
   };
 
   if (isLoading) {
@@ -144,18 +204,99 @@ export default function DashboardPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Revisar Flashcards</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Gerenciar Sessões</h3>
             <p className="text-gray-600 mb-4">
-              {stats?.due_flashcards || 0} cartões para revisar hoje
+              Visualize e delete suas sessões de prática
             </p>
-            <Link href="/flashcards">
-              <Button variant="outline" className="w-full">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Revisar Agora
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => setShowSessionManager(!showSessionManager)}
+            >
+              {showSessionManager ? <X className="h-4 w-4 mr-2" /> : <CheckSquare className="h-4 w-4 mr-2" />}
+              {showSessionManager ? 'Fechar Gerenciador' : 'Gerenciar Sessões'}
+            </Button>
           </div>
         </div>
+
+        {/* Session Manager */}
+        {showSessionManager && (
+          <div className="bg-white rounded-lg shadow mb-8">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Todas as Sessões</h3>
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleSelectAll}
+                  disabled={sessionsLoading || !allSessions || !Array.isArray(allSessions) || allSessions.length === 0}
+                >
+                  Selecionar Todas
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleDeselectAll}
+                  disabled={selectedSessions.size === 0}
+                >
+                  Limpar Seleção
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleDeleteSelected}
+                  disabled={selectedSessions.size === 0 || deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Deletar ({selectedSessions.size})
+                </Button>
+              </div>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {sessionsLoading ? (
+                <div className="px-6 py-4 text-center text-gray-500">
+                  Carregando sessões...
+                </div>
+              ) : !allSessions || !Array.isArray(allSessions) || allSessions.length === 0 ? (
+                <div className="px-6 py-4 text-center text-gray-500">
+                  Nenhuma sessão encontrada
+                </div>
+              ) : (
+                allSessions.map((session: VoiceSession) => (
+                  <div key={session.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => toggleSessionSelection(session.id)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          {selectedSessions.has(session.id) ? (
+                            <CheckSquare className="h-5 w-5 text-blue-600" />
+                          ) : (
+                            <Square className="h-5 w-5" />
+                          )}
+                        </button>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 capitalize">
+                            {session.topic}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {formatDate(session.started_at)} • {session.total_messages} mensagens
+                          </p>
+                        </div>
+                      </div>
+                      <Link href={`/session/${session.id}`}>
+                        <Button variant="ghost" size="sm">
+                          Ver
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Recent sessions */}
         {stats?.recent_sessions && stats.recent_sessions.length > 0 && (
