@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Calendar, BookOpen, Zap, Trash2, CheckSquare, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Link } from '@/components/ui/Link';
@@ -17,7 +17,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
-  
+
+  // Invalidate queries on mount to ensure fresh data when returning from sessions
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+  }, [queryClient]);
+
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboardApi.getStats().then(res => res.data),
