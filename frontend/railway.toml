@@ -10,4 +10,6 @@ restartPolicyType = "on_failure"
 
 [env]
 NODE_ENV = "production"
-NEXT_PUBLIC_API_URL = "${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}"
+# Set NEXT_PUBLIC_API_URL in Railway dashboard to your backend service URL
+# Example: https://speakflowbackend-production.up.railway.app/api
+NEXT_PUBLIC_API_URL = "${NEXT_PUBLIC_API_URL}"
