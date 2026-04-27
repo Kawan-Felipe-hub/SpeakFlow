@@ -70,21 +70,6 @@ services:
     depends_on:
       - backend
 
-  landing:
-    build:
-      context: ./landing
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api
-    container_name: speakflow-landing
-    ports:
-      - "3001:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api
-      PORT: 3000
-    depends_on:
-      - backend
-
 volumes:
   postgres_data:
   backend_media:

@@ -6,7 +6,6 @@ SpeakFlow is a language learning platform powered by AI, featuring speech recogn
 
 - **backend** - Django 5 + Django Ninja + PostgreSQL API
 - **frontend** - Next.js 14 web application
-- **landing** - Next.js 14 landing page
 
 ## Local Development Setup
 
@@ -31,7 +30,6 @@ docker-compose exec backend python manage.py migrate
 # 5. Access the applications
 # Backend API: http://localhost:8000/api/
 # Frontend: http://localhost:3000
-# Landing: http://localhost:3001
 ```
 
 ### Additional Commands
@@ -70,7 +68,6 @@ Each service has its own `railway.toml` configuration file:
 
 1. **Backend**: Deploy the `/backend` directory to Railway
 2. **Frontend**: Deploy the `/frontend` directory to Railway
-3. **Landing**: Deploy the `/landing` directory to Railway
 
 ### Railway Setup Steps
 
@@ -78,7 +75,7 @@ Each service has its own `railway.toml` configuration file:
 2. Add a PostgreSQL service
 3. Deploy each service from its respective directory
 4. Set environment variables in Railway dashboard (replace `{VARIABLE}` placeholders in railway.toml)
-5. Set `NEXT_PUBLIC_API_URL` in frontend/landing to point to the backend Railway URL
+5. Set `NEXT_PUBLIC_API_URL` in frontend to point to the backend Railway URL
 
 ### Required Railway Secrets
 
@@ -90,7 +87,7 @@ Each service has its own `railway.toml` configuration file:
 - `AZURE_SPEECH_REGION`
 - `AZURE_SPEECH_LANGUAGE`
 - `AZURE_SPEECH_VOICE`
-- `NEXT_PUBLIC_API_URL` (for frontend and landing)
+- `NEXT_PUBLIC_API_URL` (for frontend)
 
 ## Development Without Docker
 
@@ -111,14 +108,6 @@ python manage.py runserver
 
 ```bash
 cd frontend
-npm install
-npm run dev
-```
-
-### Landing
-
-```bash
-cd landing
 npm install
 npm run dev
 ```

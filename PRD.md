@@ -77,8 +77,8 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 - **Plano gratuito** com limites (ex.: minutos/dia ou sessões/semana; tokens/turnos).
 - **Pagamentos/assinatura** (pode ser simplificado no MVP: “waitlist + acesso” ou Stripe básico).
 
-#### D) SaaS Web (Next.js) + Landing (Next.js)
-- Landing com proposta de valor + CTA.
+#### D) SaaS Web (Next.js) com Landing Page integrada
+- Landing page integrada ao frontend (página pública em /) com proposta de valor + CTA.
 - App web com:
   - iniciar sessão de voz,
   - visualizar feedback,
@@ -249,8 +249,7 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 ## Apêndice A — Stack e componentes (referência)
 
 ### Frontend
-- **Landing Page**: Next.js → Railway
-- **SaaS Web**: Next.js → Railway
+- **SaaS Web (Next.js)**: Landing page integrada (página pública em /) + aplicação web → Railway
 
 ### Backend
 - **API**: Django + Django Ninja

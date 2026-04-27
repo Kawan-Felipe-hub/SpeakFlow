@@ -385,7 +385,7 @@ Política: **Last Write Wins com base no `reviewed_at` do evento local**.
 - **Mitigação**:
   - endpoints leves, conexões DB eficientes,
   - healthcheck e warmup simples,
-  - separar landing e app apenas se necessário (ou monorepo com rotas).
+  - landing page integrada ao frontend (página pública em /).
 
 ### 8.7 Segurança (JWT, CORS, armazenamento de tokens)
 - **Risco**: vazamento de token e acesso indevido.
