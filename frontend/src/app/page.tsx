@@ -16,20 +16,11 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'pt_BR',
     url: 'https://speakflow.com',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'SpeakFlow - Aprenda inglês falando',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SpeakFlow - Aprenda inglês falando com tutor de IA',
     description: 'Pratique sua pronúncia e conversação em inglês com nosso tutor de IA inteligente.',
-    images: ['/og-image.jpg'],
   },
   robots: {
     index: true,
