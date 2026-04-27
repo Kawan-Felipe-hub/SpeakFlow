@@ -11,7 +11,6 @@ restartPolicyType = "on_failure"
 [env]
 DJANGO_DEBUG = "false"
 APP_ENV = "production"
-PORT = "8000"
 
 # Database (Railway provides DATABASE_URL automatically)
 # These are fallbacks if DATABASE_URL is not available

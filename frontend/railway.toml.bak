@@ -10,7 +10,6 @@ restartPolicyType = "on_failure"
 
 [env]
 NODE_ENV = "production"
-PORT = "3000"
 
 # API URL (set this to your backend Railway URL)
 NEXT_PUBLIC_API_URL = "{NEXT_PUBLIC_API_URL}"
