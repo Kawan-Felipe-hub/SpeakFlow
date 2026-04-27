@@ -12,6 +12,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import HttpRequest
+from django.views.decorators.csrf import csrf_exempt
 from ninja import NinjaAPI, Router
 from ninja.files import UploadedFile
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -47,6 +48,7 @@ def issue_tokens(user: User) -> TokenOut:
 
 
 @router.post("/auth/register/", response={201: TokenOut, 400: ErrorOut}, auth=None)
+@csrf_exempt
 def register(request: HttpRequest, payload: RegisterIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
     if User.objects.filter(username=payload.username).exists():
         return 400, ErrorOut(detail="Username already exists.")
@@ -60,6 +62,7 @@ def register(request: HttpRequest, payload: RegisterIn) -> tuple[int, TokenOut] 
 
 
 @router.post("/auth/login/", response={200: TokenOut, 401: ErrorOut}, auth=None)
+@csrf_exempt
 def login(request: HttpRequest, payload: LoginIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
     user = authenticate(request, username=payload.username, password=payload.password)
     if user is None:
