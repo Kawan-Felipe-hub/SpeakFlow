@@ -2,16 +2,17 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+COPY tsconfig.json next.config.mjs ./
+COPY postcss.config.js tailwind.config.js ./
+COPY src ./src
+COPY public ./public
 RUN npm install
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package*.json ./
-COPY tsconfig.json next.config.mjs ./
-COPY src ./src
-COPY public ./public
+COPY . .
 RUN npm run build
 
 # Stage 3: Runner
