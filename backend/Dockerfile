@@ -22,4 +22,4 @@ RUN python manage.py collectstatic --noinput || true
 
 EXPOSE $PORT
 
-CMD sh -c "gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4"
+CMD sh -c "python manage.py migrate --noinput && gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4"

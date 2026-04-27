@@ -47,27 +47,40 @@ def issue_tokens(user: User) -> TokenOut:
     return TokenOut(access=str(refresh.access_token), refresh=str(refresh))
 
 
-@router.post("/auth/register/", response={201: TokenOut, 400: ErrorOut}, auth=None)
+@router.post("/auth/register/", response={201: TokenOut, 400: ErrorOut, 500: ErrorOut}, auth=None)
 @csrf_exempt
 def register(request: HttpRequest, payload: RegisterIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
-    if User.objects.filter(username=payload.username).exists():
-        return 400, ErrorOut(detail="Username already exists.")
-    if User.objects.filter(email=payload.email).exists():
-        return 400, ErrorOut(detail="Email already exists.")
+    try:
+        if User.objects.filter(username=payload.username).exists():
+            return 400, ErrorOut(detail="Username already exists.")
+        if User.objects.filter(email=payload.email).exists():
+            return 400, ErrorOut(detail="Email already exists.")
 
-    user = User(username=payload.username, email=payload.email)
-    user.set_password(payload.password)
-    user.save()
-    return 201, issue_tokens(user)
+        user = User(username=payload.username, email=payload.email)
+        user.set_password(payload.password)
+        user.full_clean()  # Validate before saving
+        user.save()
+        return 201, issue_tokens(user)
+    except Exception as e:
+        import traceback
+        print(f"Registration error: {str(e)}")
+        print(traceback.format_exc())
+        return 500, ErrorOut(detail=f"Registration failed: {str(e)}")
 
 
-@router.post("/auth/login/", response={200: TokenOut, 401: ErrorOut}, auth=None)
+@router.post("/auth/login/", response={200: TokenOut, 401: ErrorOut, 500: ErrorOut}, auth=None)
 @csrf_exempt
 def login(request: HttpRequest, payload: LoginIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
-    user = authenticate(request, username=payload.username, password=payload.password)
-    if user is None:
-        return 401, ErrorOut(detail="Invalid credentials.")
-    return 200, issue_tokens(user)  # type: ignore[arg-type]
+    try:
+        user = authenticate(request, username=payload.username, password=payload.password)
+        if user is None:
+            return 401, ErrorOut(detail="Invalid credentials.")
+        return 200, issue_tokens(user)  # type: ignore[arg-type]
+    except Exception as e:
+        import traceback
+        print(f"Login error: {str(e)}")
+        print(traceback.format_exc())
+        return 500, ErrorOut(detail=f"Login failed: {str(e)}")
 
 
 def require_user(request: HttpRequest) -> User:

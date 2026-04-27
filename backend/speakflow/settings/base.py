@@ -19,6 +19,11 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-insecure-secret")
 DEBUG = env("DJANGO_DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h.strip() for h in env("DJANGO_ALLOWED_HOSTS", "*").split(",") if h.strip()]
+# Ensure Railway domains are always allowed
+if "RAILWAY_PUBLIC_DOMAIN" in os.environ:
+    railway_domain = os.environ["RAILWAY_PUBLIC_DOMAIN"]
+    if railway_domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(railway_domain)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -132,6 +137,15 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = [o.strip() for o in env("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env("CSRF_TRUSTED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+
+# Ensure Railway frontend domain is trusted for CSRF and CORS
+if "RAILWAY_PUBLIC_DOMAIN" in os.environ:
+    railway_domain = os.environ["RAILWAY_PUBLIC_DOMAIN"]
+    railway_url = f"https://{railway_domain}"
+    if railway_url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(railway_url)
+    if railway_url not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(railway_url)
 
 # Base URL for generating absolute URLs (for mobile app access)
 BASE_URL = env("BASE_URL", "http://localhost:8000")
