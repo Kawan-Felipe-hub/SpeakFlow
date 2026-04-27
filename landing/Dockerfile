@@ -7,6 +7,9 @@ RUN npm install
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

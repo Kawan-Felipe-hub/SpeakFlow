@@ -71,19 +71,19 @@ services:
       - backend
 
   landing:
-    image: node:20-alpine
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api
     container_name: speakflow-landing
-    working_dir: /app
     ports:
       - "3001:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api
-    volumes:
-      - ./landing:/app
-      - /app/node_modules
+      PORT: 3000
     depends_on:
       - backend
-    command: sh -c "npm install && npm run dev"
 
 volumes:
   postgres_data:
