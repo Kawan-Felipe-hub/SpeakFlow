@@ -32,4 +32,4 @@ EXPOSE $PORT
 
 ENV PORT 3000
 
-CMD ["node", "server.js"]
+CMD sh -c "node server.js"
