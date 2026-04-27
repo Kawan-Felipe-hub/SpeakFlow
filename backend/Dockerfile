@@ -20,6 +20,6 @@ COPY . .
 # Collect static files
 RUN python manage.py collectstatic --noinput || true
 
-EXPOSE 8000
+EXPOSE $PORT
 
-CMD ["gunicorn", "speakflow.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]
+CMD ["sh", "-c", "gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4"]

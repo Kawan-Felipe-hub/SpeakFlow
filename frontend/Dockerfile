@@ -28,7 +28,7 @@ COPY --from=builder /app/public ./public
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE $PORT
 
 ENV PORT 3000
 
