@@ -1,0 +1,9 @@
+[phases.build]
+cmds = ["npm run build"]
+
+[phases.start]
+cmd = "npm start"
+
+[variables]
+NODE_ENV = "production"
+NEXT_PUBLIC_API_URL = "${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}"
