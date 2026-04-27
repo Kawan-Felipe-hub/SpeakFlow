@@ -15,8 +15,9 @@ class TutorLLMResult:
     raw: dict[str, Any]
 
 
-def build_tutor_user_prompt(*, transcript: str) -> str:
+def build_tutor_user_prompt(*, transcript: str, topic: str) -> str:
     return (
+        f"Topic da conversa: {topic}\n\n"
         "Transcrição do aluno (em inglês, pode ter erros):\n"
         f"{transcript}\n\n"
         "Responda seguindo o formato JSON solicitado."
@@ -65,12 +66,13 @@ async def tutor_reply(
     system_prompt: str,
     history: list[dict[str, str]],
     transcript: str,
+    topic: str,
 ) -> TutorLLMResult:
     """
     Returns the tutor response + corrections + vocab suggestions.
     history is a list of {role: user|assistant, content: ...} for context.
     """
-    user_msg = {"role": "user", "content": build_tutor_user_prompt(transcript=transcript)}
+    user_msg = {"role": "user", "content": build_tutor_user_prompt(transcript=transcript, topic=topic)}
     obj = await groq_chat_json(
         api_key=api_key,
         model=model,

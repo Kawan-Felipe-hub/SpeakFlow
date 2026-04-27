@@ -89,19 +89,6 @@ export default function FinalCTA() {
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 0.1;
-          }
-          50% {
-            opacity: 0.2;
-          }
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-      `}</style>
     </section>
   );
 }

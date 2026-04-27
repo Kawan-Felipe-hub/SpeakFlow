@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: speakflow-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: speakflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: speakflow-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_DEBUG: "true"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
+      DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,backend"
+      APP_ENV: dev
+      USE_SQLITE: "false"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/speakflow
+      POSTGRES_DB: speakflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-brazilsouth}
+      AZURE_SPEECH_LANGUAGE: ${AZURE_SPEECH_LANGUAGE:-en-US}
+      AZURE_SPEECH_VOICE: ${AZURE_SPEECH_VOICE:-en-US-JennyNeural}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-jwt-secret}
+      JWT_ACCESS_TTL_MINUTES: 15
+      JWT_REFRESH_TTL_DAYS: 30
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001
+      CSRF_TRUSTED_ORIGINS: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001
+      BASE_URL: http://localhost:8000
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python manage.py runserver 0.0.0.0:8000
+
+  frontend:
+    image: node:20-alpine
+    container_name: speakflow-frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      PORT: 3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev"
+
+  landing:
+    image: node:20-alpine
+    container_name: speakflow-landing
+    working_dir: /app
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    volumes:
+      - ./landing:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  postgres_data:
+  backend_media:
+  backend_static:

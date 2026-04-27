@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Calendar, BookOpen, Zap, Trash2, CheckSquare, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Link } from '@/components/ui/Link';
+import { TopicSelectionDialog } from '@/components/TopicSelectionDialog';
 import { dashboardApi, sessionApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { authApi } from '@/lib/api';
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showSessionManager, setShowSessionManager] = useState(false);
+  const [showTopicDialog, setShowTopicDialog] = useState(false);
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
 
   // Invalidate queries on mount to ensure fresh data when returning from sessions
@@ -50,10 +52,14 @@ export default function DashboardPage() {
     },
   });
 
-  const handleCreateSession = async () => {
+  const handleCreateSession = () => {
+    setShowTopicDialog(true);
+  };
+
+  const handleSelectTopic = async (topic: string) => {
     try {
-      // Pede pro Django criar a sessão com um tópico padrão
-      const response = await dashboardApi.createSession('General Practice');
+      setShowTopicDialog(false);
+      const response = await dashboardApi.createSession(topic);
       
       // Pega o ID numérico real que o Django gerou e redireciona
       const idReal = response.data.id;
@@ -334,6 +340,13 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Topic Selection Dialog */}
+      <TopicSelectionDialog
+        isOpen={showTopicDialog}
+        onClose={() => setShowTopicDialog(false)}
+        onSelectTopic={handleSelectTopic}
+      />
     </div>
   );
 }

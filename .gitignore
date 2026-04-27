@@ -34,6 +34,7 @@ venv/
 ENV/
 env/
 .env
+.env.example
 
 # Node.js / Next.js
 node_modules/

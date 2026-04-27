@@ -100,3 +100,10 @@ class ReviewOut(Schema):
     quality_score: int
     new_interval: int
 
+
+class DashboardStatsOut(Schema):
+    streak: int
+    total_sessions: int
+    due_flashcards: int
+    recent_sessions: list[VoiceSessionOut]
+

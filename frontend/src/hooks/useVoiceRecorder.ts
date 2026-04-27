@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import webmToWav from 'webm-to-wav-converter';
+import { getWaveBlob } from 'webm-to-wav-converter';
 
 export interface UseVoiceRecorderReturn {
   isRecording: boolean;
@@ -97,7 +97,7 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
         if (mimeType.includes('webm') || mimeType.includes('ogg')) {
           try {
             console.log('Converting WebM to WAV...');
-            const wavBlob = await webmToWav(originalBlob);
+            const wavBlob = await getWaveBlob(originalBlob, false);
             finalBlob = wavBlob;
             console.log(`Converted to WAV: ${finalBlob.size} bytes, type: ${finalBlob.type}`);
           } catch (error) {

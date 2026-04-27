@@ -376,4 +376,36 @@
     background-color: #fee2e2;
     color: #991b1b;
   }
+
+  /* Animation delay utilities for cross-browser compatibility */
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+
+  /* Cross-browser backdrop-filter support */
+  @supports not (backdrop-filter: blur(10px)) {
+    .glass,
+    .glass-dark {
+      background: rgba(255, 255, 255, 0.95);
+    }
+  }
+
+  /* Cross-browser mix-blend-mode support */
+  @supports not (mix-blend-mode: multiply) {
+    .mix-blend-multiply {
+      mix-blend-mode: normal;
+      opacity: 0.5;
+    }
+  }
+
+  /* Improve gradient text rendering */
+  .bg-gradient-to-r {
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }

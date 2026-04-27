@@ -62,7 +62,7 @@ export default function Hero() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Link href="/register">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-semibold py-4 px-8 rounded-xl text-lg shadow-xl transform hover:scale-105 transition-all duration-200">
+              <Button size="lg" className="w-full sm:w-auto bg-white border-2 border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 font-semibold py-4 px-8 rounded-xl text-lg shadow-lg transform hover:scale-105 transition-all duration-200">
                 Começar grátis
                 <Sparkles className="w-5 h-5 ml-2" />
               </Button>
@@ -108,22 +108,6 @@ export default function Hero() {
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 0.3;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
     </section>
   );
 }

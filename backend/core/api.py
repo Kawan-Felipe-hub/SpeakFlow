@@ -21,6 +21,7 @@ from core.integrations.azure_speech import recognize_and_assess, synthesize_tts
 from core.integrations.groq_llm import tutor_reply
 from core.models import FlashCard, ReviewLog, SessionMessage, User, VoiceSession, sm2_review
 from core.schemas import (
+    DashboardStatsOut,
     ErrorOut,
     FlashCardCreateIn,
     FlashCardOut,
@@ -156,12 +157,44 @@ def delete_session(request: HttpRequest, session_id: int) -> tuple[int, None] | 
     return 204, None
 
 
+@router.get("/dashboard/stats/", response=DashboardStatsOut)
+def get_dashboard_stats(request: HttpRequest) -> DashboardStatsOut:
+    user = require_user(request)
+    now = datetime.now(timezone.utc)
+    
+    # Get recent sessions (last 5)
+    recent_sessions_qs = VoiceSession.objects.filter(user=user).order_by("-started_at")[:5]
+    recent_sessions = [
+        VoiceSessionOut(
+            id=s.id,
+            user_id=s.user_id,
+            started_at=s.started_at,
+            ended_at=s.ended_at,
+            topic=s.topic,
+            total_messages=s.total_messages,
+        )
+        for s in recent_sessions_qs
+    ]
+    
+    # Count due flashcards
+    due_flashcards_count = FlashCard.objects.filter(user=user, next_review_at__lte=now).count()
+    
+    return DashboardStatsOut(
+        streak=user.streak_days,
+        total_sessions=user.total_sessions,
+        due_flashcards=due_flashcards_count,
+        recent_sessions=recent_sessions,
+    )
+
+
 def _save_audio(file: UploadedFile) -> str:
-    # Store in MEDIA_ROOT using default storage. Return absolute URL-ish path.
+    # Store in MEDIA_ROOT using default storage. Return absolute URL for mobile app access.
+    from urllib.parse import urljoin
     now = datetime.now(timezone.utc).strftime("%Y%m%d/%H%M%S")
     rel_path = f"uploads/audio/{now}_{file.name}"
     saved_path = default_storage.save(rel_path, file)
-    return settings.MEDIA_URL + saved_path
+    base_url = settings.BASE_URL
+    return urljoin(base_url, settings.MEDIA_URL + saved_path.lstrip('/'))
 
 
 @router.post(
@@ -292,6 +325,7 @@ async def post_message(
                 system_prompt=system_prompt,
                 history=history,
                 transcript=transcript,
+                topic=session.topic,
             )
             reply_text = llm.reply_text or "Could you say that again in a different way?"
             print(f"LLM concluído. Reply: '{reply_text}'")
@@ -318,14 +352,14 @@ async def post_message(
 
             def _save_tts_bytes() -> str:
                 from datetime import datetime, timezone
+                from urllib.parse import urljoin
                 now = datetime.now(timezone.utc).strftime("%Y%m%d/%H%M%S")
                 rel_path = f"uploads/tts/{now}_reply.wav"
                 audio_file = ContentFile(tts_bytes)
                 saved_path = default_storage.save(rel_path, audio_file)
                 # Build absolute URL for frontend to access
-                # Get the base URL from request or use default
-                from urllib.parse import urljoin
-                base_url = f"http://{request.get_host()}"
+                # Use BASE_URL from settings for mobile app compatibility
+                base_url = settings.BASE_URL
                 url = urljoin(base_url, settings.MEDIA_URL + saved_path.lstrip('/'))
                 print(f"Saved path: {saved_path}, Full URL: {url}")
                 return url

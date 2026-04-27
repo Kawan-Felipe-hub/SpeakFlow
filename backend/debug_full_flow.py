@@ -94,6 +94,7 @@ async def debug_full_flow():
                 system_prompt=system_prompt,
                 history=[],
                 transcript=stt_res.transcript,
+                topic='General Conversation',
             )
             print(f"LLM OK: reply='{llm.reply_text}'")
         except Exception as e:

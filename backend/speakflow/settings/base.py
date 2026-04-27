@@ -133,6 +133,9 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [o.strip() for o in env("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env("CSRF_TRUSTED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
 
+# Base URL for generating absolute URLs (for mobile app access)
+BASE_URL = env("BASE_URL", "http://localhost:8000")
+
 # CORS settings for Django Ninja API
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True

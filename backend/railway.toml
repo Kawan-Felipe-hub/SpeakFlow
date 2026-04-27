@@ -1,0 +1,39 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+
+[deploy]
+startCommand = "gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4"
+healthcheckPath = "/api/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[env]
+DJANGO_DEBUG = "false"
+APP_ENV = "production"
+PORT = "8000"
+
+# Database (Railway provides DATABASE_URL automatically)
+# These are fallbacks if DATABASE_URL is not available
+POSTGRES_DB = "speakflow"
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "{POSTGRES_PASSWORD}"
+POSTGRES_HOST = "{POSTGRES_HOST}"
+POSTGRES_PORT = "5432"
+
+# Required secrets (set these in Railway dashboard)
+DJANGO_SECRET_KEY = "{DJANGO_SECRET_KEY}"
+DJANGO_ALLOWED_HOSTS = "{DJANGO_ALLOWED_HOSTS}"
+JWT_SIGNING_KEY = "{JWT_SIGNING_KEY}"
+GROQ_API_KEY = "{GROQ_API_KEY}"
+AZURE_SPEECH_KEY = "{AZURE_SPEECH_KEY}"
+AZURE_SPEECH_REGION = "{AZURE_SPEECH_REGION}"
+AZURE_SPEECH_LANGUAGE = "{AZURE_SPEECH_LANGUAGE}"
+AZURE_SPEECH_VOICE = "{AZURE_SPEECH_VOICE}"
+
+# Optional with defaults
+JWT_ACCESS_TTL_MINUTES = "15"
+JWT_REFRESH_TTL_DAYS = "30"
+CORS_ALLOWED_ORIGINS = "https://{RAILWAY_PUBLIC_DOMAIN},https://speakflow.vercel.app,https://speakflow.com"
+CSRF_TRUSTED_ORIGINS = "https://{RAILWAY_PUBLIC_DOMAIN},https://speakflow.vercel.app,https://speakflow.com"
+BASE_URL = "https://{RAILWAY_PUBLIC_DOMAIN}"

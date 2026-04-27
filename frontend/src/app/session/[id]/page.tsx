@@ -46,7 +46,7 @@ export default function SessionPage() {
 
   // Load messages when sessionMessages data is available
   useEffect(() => {
-    if (sessionMessages && sessionMessages.length > 0) {
+    if (sessionMessages) {
       setMessages(sessionMessages);
     }
   }, [sessionMessages]);
