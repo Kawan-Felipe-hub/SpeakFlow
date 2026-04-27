@@ -9,11 +9,12 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build || (echo "Build failed. Checking for errors..." && cat .next/trace 2>/dev/null || true && exit 1)
+RUN npm run build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
