@@ -147,11 +147,20 @@ if "RAILWAY_PUBLIC_DOMAIN" in os.environ:
     if railway_url not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(railway_url)
 
+# Add additional frontend URLs from environment variable
+additional_origins = env("ADDITIONAL_CORS_ORIGINS", "").split(",")
+for origin in additional_origins:
+    origin = origin.strip()
+    if origin and origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(origin)
+    if origin and origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
 # Base URL for generating absolute URLs (for mobile app access)
 BASE_URL = env("BASE_URL", "http://localhost:8000")
 
 # CORS settings for Django Ninja API
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_HEADERS = True
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
