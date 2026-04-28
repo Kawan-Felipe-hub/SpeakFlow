@@ -318,12 +318,12 @@ def _recognize_and_assess_sync(
 
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        # Pronunciation Assessment configuration
+        # Pronunciation Assessment configuration - use phoneme assessment for free-form speech
         pa_config = speechsdk.PronunciationAssessmentConfig(
-            reference_text="",
+            reference_text="*",  # Use asterisk for phoneme-based assessment
             grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-            granularity=speechsdk.PronunciationAssessmentGranularity.Word,
-            enable_miscue=True,
+            granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
+            enable_miscue=False,  # Disable miscue for free-form
         )
         pa_config.apply_to(recognizer)
 
@@ -352,13 +352,13 @@ def _recognize_and_assess_sync(
 
     recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    # Pronunciation Assessment configuration
+    # Pronunciation Assessment configuration - use phoneme assessment for free-form speech
     # Note: For free-tier constraints and SDK variations, keep config minimal.
     pa_config = speechsdk.PronunciationAssessmentConfig(
-        reference_text="",  # free-form assessment
+        reference_text="*",  # Use asterisk for phoneme-based assessment
         grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-        granularity=speechsdk.PronunciationAssessmentGranularity.Word,
-        enable_miscue=True,
+        granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
+        enable_miscue=False,  # Disable miscue for free-form
     )
     pa_config.apply_to(recognizer)
 
