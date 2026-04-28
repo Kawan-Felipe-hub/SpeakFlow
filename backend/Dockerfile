@@ -22,4 +22,5 @@ RUN python manage.py collectstatic --noinput || true
 
 EXPOSE $PORT
 
-CMD sh -c "python manage.py migrate --noinput && gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4"
+# Use whitenoise to serve both static and media files
+CMD sh -c "python manage.py migrate --noinput && gunicorn speakflow.wsgi:application --bind 0.0.0.0:$PORT --workers 4 --access-logfile - --error-logfile -"
