@@ -9,28 +9,29 @@ class CustomCorsMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
-        
-        # Add CORS headers to all responses
-        origin = request.headers.get("Origin")
-        
-        # Check if origin is in allowed list
-        allowed_origins = getattr(settings, "CORS_ALLOWED_ORIGINS", [])
-        if origin and (origin in allowed_origins or settings.CORS_ALLOW_ALL_ORIGINS):
-            response["Access-Control-Allow-Origin"] = origin
-            response["Access-Control-Allow-Credentials"] = "true"
-            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-            response["Access-Control-Max-Age"] = "86400"
-        
-        # Handle preflight requests
+        # Handle preflight requests first
         if request.method == "OPTIONS":
             response = HttpResponse()
-            if origin and (origin in allowed_origins or settings.CORS_ALLOW_ALL_ORIGINS):
-                response["Access-Control-Allow-Origin"] = origin
-                response["Access-Control-Allow-Credentials"] = "true"
-                response["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-                response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-                response["Access-Control-Max-Age"] = "86400"
+            self._add_cors_headers(request, response)
+            return response
         
+        # Process normal request
+        response = self.get_response(request)
+        self._add_cors_headers(request, response)
         return response
+    
+    def _add_cors_headers(self, request, response):
+        origin = request.headers.get("Origin")
+        allowed_origins = getattr(settings, "CORS_ALLOWED_ORIGINS", [])
+        allow_all = getattr(settings, "CORS_ALLOW_ALL_ORIGINS", False)
+        
+        # Always add CORS headers for development or if origin is allowed
+        if not origin or origin in allowed_origins or allow_all:
+            if origin:
+                response["Access-Control-Allow-Origin"] = origin
+            else:
+                response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Credentials"] = "true"
+            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept"
+            response["Access-Control-Max-Age"] = "86400"
