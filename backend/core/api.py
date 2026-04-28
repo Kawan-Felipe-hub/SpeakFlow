@@ -74,9 +74,12 @@ def register(request):
 
 @router.post("/auth/login/", response={200: TokenOut, 401: ErrorOut, 500: ErrorOut}, auth=None)
 @csrf_exempt
-def login(request, payload):
+def login(request):
     try:
-        user = authenticate(request, username=payload.username, password=payload.password)
+        import json
+        data = json.loads(request.body)
+        
+        user = authenticate(request, username=data.get('username'), password=data.get('password'))
         if user is None:
             return 401, ErrorOut(detail="Invalid credentials.")
         return 200, issue_tokens(user)  # type: ignore[arg-type]
