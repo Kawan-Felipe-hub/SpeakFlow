@@ -157,7 +157,11 @@ for origin in additional_origins:
         CSRF_TRUSTED_ORIGINS.append(origin)
 
 # Base URL for generating absolute URLs (for mobile app access)
-BASE_URL = env("BASE_URL", "http://localhost:8000")
+if "RAILWAY_PUBLIC_DOMAIN" in os.environ:
+    railway_domain = os.environ["RAILWAY_PUBLIC_DOMAIN"]
+    BASE_URL = f"https://{railway_domain}"
+else:
+    BASE_URL = env("BASE_URL", "http://localhost:8000")
 
 # CORS settings for Django Ninja API
 CORS_ALLOW_ALL_ORIGINS = False
