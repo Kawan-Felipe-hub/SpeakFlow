@@ -278,16 +278,41 @@ async def session_message_view(request: HttpRequest, session_id: int) -> JsonRes
         logger.info("Step 1: Starting Azure transcription")
         content_type = audio_file.content_type if hasattr(audio_file, 'content_type') else 'audio/webm'
         logger.info(f"Audio content type: {content_type}")
+        logger.info(f"Audio file name: {audio_file.name}")
+        logger.info(f"Audio size: {len(audio_bytes)} bytes")
         
-        azure_result = await recognize_and_assess(
-            wav_bytes=audio_bytes,
-            key=os.getenv('AZURE_SPEECH_KEY'),
-            region=os.getenv('AZURE_SPEECH_REGION'),
-            language=os.getenv('AZURE_SPEECH_LANGUAGE', 'en-US'),
-            timeout_s=20.0,
-            content_type=content_type
-        )
-        logger.info(f"Azure transcription completed: '{azure_result.transcript}'")
+        # Validate audio data before sending to Azure
+        if len(audio_bytes) < 1000:
+            logger.error(f"Audio file too small: {len(audio_bytes)} bytes")
+            return JsonResponse({
+                "detail": "Audio file is too small or empty. Please record again.",
+                "reply_text": "",
+                "reply_audio_url": "",
+                "corrections": [],
+                "new_flashcards": [],
+                "pronunciation": {"overall_score": 0.0, "word_scores": []}
+            }, status=400)
+        
+        try:
+            azure_result = await recognize_and_assess(
+                wav_bytes=audio_bytes,
+                key=os.getenv('AZURE_SPEECH_KEY'),
+                region=os.getenv('AZURE_SPEECH_REGION'),
+                language=os.getenv('AZURE_SPEECH_LANGUAGE', 'en-US'),
+                timeout_s=20.0,
+                content_type=content_type
+            )
+            logger.info(f"Azure transcription completed: '{azure_result.transcript}'")
+        except Exception as e:
+            logger.error(f"Azure transcription failed: {str(e)}")
+            return JsonResponse({
+                "detail": "Audio processing failed. The audio format may not be supported. Please try recording again.",
+                "reply_text": "",
+                "reply_audio_url": "",
+                "corrections": [],
+                "new_flashcards": [],
+                "pronunciation": {"overall_score": 0.0, "word_scores": []}
+            }, status=400)
         
         # Step 2: Get session history
         logger.info("Step 2: Getting session history")

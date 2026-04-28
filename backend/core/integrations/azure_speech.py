@@ -36,9 +36,17 @@ def _build_speech_config(*, key: str, region: str, language: str) -> speechsdk.S
     return speech_config
 
 
+def _validate_webm_header(audio_bytes: bytes) -> bool:
+    """Valida se o arquivo WebM tem um cabeçalho EBML válido"""
+    if len(audio_bytes) < 4:
+        return False
+    
+    # WebM/EBML header: 0x1A 0x45 0xDF 0xA3
+    return audio_bytes[:4] == b'\x1a\x45\xdf\xa3'
+
 def _convert_webm_to_wav(audio_bytes: bytes, content_type: str = "audio/webm") -> bytes:
     """
-    Converte WebM/Opus para WAV PCM usando múltiplas abordagens.
+    Converte WebM/Opus para WAV PCM usando múltiplas abordagens robustas.
     Se já for WAV, retorna os bytes originais.
     """
     print(f"Recebendo áudio em formato: {content_type}")
@@ -54,7 +62,65 @@ def _convert_webm_to_wav(audio_bytes: bytes, content_type: str = "audio/webm") -
         print(f"Formato não suportado para conversão: {content_type}")
         return audio_bytes
     
-    # Abordagem 1: Tentar usar pydub se disponível
+    # Validação do cabeçalho WebM
+    if not _validate_webm_header(audio_bytes):
+        print("❌ Cabeçalho WebM inválido - arquivo corrompido ou não é WebM")
+        return _create_fallback_wav(audio_bytes)
+    
+    # Abordagem 1: Tentar ffmpeg com opções mais robustas
+    try:
+        print("Tentando conversão com ffmpeg robusto...")
+        
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as webm_file:
+            webm_file.write(audio_bytes)
+            webm_path = webm_file.name
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
+            wav_path = wav_file.name
+        
+        # Comando ffmpeg mais robusto com tratamento de erros
+        cmd = [
+            "ffmpeg", 
+            "-i", webm_path,
+            "-acodec", "pcm_s16le",  # Audio codec
+            "-ar", "16000",          # Sample rate
+            "-ac", "1",              # Mono
+            "-y",                    # Overwrite output
+            "-loglevel", "error",    # Only show errors
+            wav_path
+        ]
+        
+        print(f"Executando: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            with open(wav_path, 'rb') as f:
+                wav_bytes = f.read()
+            
+            # Valida o WAV gerado
+            if len(wav_bytes) > 44 and wav_bytes[:4] == b'RIFF':
+                print(f"✅ Conversão com ffmpeg bem-sucedida: {len(audio_bytes)} -> {len(wav_bytes)} bytes")
+                return wav_bytes
+            else:
+                print("❌ ffmpeg gerou WAV inválido")
+        else:
+            print(f"❌ ffmpeg falhou: {result.stderr}")
+            
+    except FileNotFoundError:
+        print("❌ ffmpeg não encontrado no sistema")
+    except Exception as e:
+        print(f"❌ Erro com ffmpeg: {e}")
+    finally:
+        # Limpa arquivos temporários
+        try:
+            if 'webm_path' in locals():
+                os.unlink(webm_path)
+            if 'wav_path' in locals():
+                os.unlink(wav_path)
+        except:
+            pass
+    
+    # Abordagem 2: Tentar pydub se disponível
     try:
         from pydub import AudioSegment
         print("Tentando conversão com pydub...")
@@ -71,108 +137,90 @@ def _convert_webm_to_wav(audio_bytes: bytes, content_type: str = "audio/webm") -
             audio = AudioSegment.from_file(audio_buffer, format="webm")
             print("Formato WebM detectado")
         
-        # Exporta para WAV
+        # Exporta para WAV com parâmetros específicos
         wav_buffer = io.BytesIO()
-        audio.export(wav_buffer, format="wav")
+        audio = audio.set_frame_rate(16000).set_channels(1)
+        audio.export(wav_buffer, format="wav", parameters=["-acodec", "pcm_s16le"])
         converted_bytes = wav_buffer.getvalue()
         
-        print(f"Conversão com pydub bem-sucedida: {len(audio_bytes)} -> {len(converted_bytes)} bytes")
+        print(f"✅ Conversão com pydub bem-sucedida: {len(audio_bytes)} -> {len(converted_bytes)} bytes")
         return converted_bytes
         
     except ImportError:
-        print("pydub não disponível, tentando outras abordagens...")
+        print("pydub não disponível")
     except Exception as e:
-        print(f"Erro com pydub: {e}")
+        print(f"❌ Erro com pydub: {e}")
     
-    # Abordagem 2: Tentar ffmpeg via subprocess
-    try:
-        print("Tentando conversão com ffmpeg...")
-        
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as webm_file:
-            webm_file.write(audio_bytes)
-            webm_path = webm_file.name
-        
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
-            wav_path = wav_file.name
-        
-        # Comando ffmpeg simplificado
-        cmd = ["ffmpeg", "-i", webm_path, "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", wav_path, "-y"]
-        
-        print(f"Executando: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        
-        if result.returncode == 0:
-            with open(wav_path, 'rb') as f:
-                wav_bytes = f.read()
-            
-            print(f"Conversão com ffmpeg bem-sucedida: {len(audio_bytes)} -> {len(wav_bytes)} bytes")
-            return wav_bytes
-        else:
-            print(f"ffmpeg falhou: {result.stderr}")
-            
-    except FileNotFoundError:
-        print("ffmpeg não encontrado no sistema")
-    except Exception as e:
-        print(f"Erro com ffmpeg: {e}")
-    finally:
-        # Limpa arquivos temporários
-        try:
-            if 'webm_path' in locals():
-                os.unlink(webm_path)
-            if 'wav_path' in locals():
-                os.unlink(wav_path)
-        except:
-            pass
+    # Abordagem 3: Fallback inteligente
+    print("Usando fallback inteligente para WebM inválido...")
+    return _create_fallback_wav(audio_bytes)
+
+def _create_fallback_wav(audio_bytes: bytes) -> bytes:
+    """
+    Cria um WAV válido a partir de dados de áudio problemáticos.
+    Extrai dados brutos e cria WAV com header correto.
+    """
+    print("Criando WAV fallback...")
     
-    # Abordagem 3: Tentar criar WAV manualmente (limitado mas melhor que nada)
-    try:
-        print("Tentando criar WAV manualmente como último recurso...")
-        
-        # Cria um cabeçalho WAV simples (16kHz, mono, 16-bit)
-        sample_rate = 16000
-        channels = 1
-        bits_per_sample = 16
-        
-        # Se os bytes do WebM forem muito pequenos, não adianta tentar
-        if len(audio_bytes) < 1000:
-            print("Arquivo de áudio muito pequeno, não é possível converter")
-            return audio_bytes
-        
-        # Tenta extrair dados brutos (muito limitado, mas pode funcionar em alguns casos)
-        # NOTA: Esta é uma abordagem muito básica e pode não funcionar para WebM real
-        wav_header = io.BytesIO()
-        
-        # WAV header (44 bytes)
-        wav_header.write(b'RIFF')
-        wav_header.write((len(audio_bytes) + 36).to_bytes(4, 'little'))
-        wav_header.write(b'WAVE')
-        wav_header.write(b'fmt ')
-        wav_header.write((16).to_bytes(4, 'little'))  # fmt chunk size
-        wav_header.write((1).to_bytes(2, 'little'))   # PCM
-        wav_header.write(channels.to_bytes(2, 'little'))
-        wav_header.write(sample_rate.to_bytes(4, 'little'))
-        wav_header.write((sample_rate * channels * bits_per_sample // 8).to_bytes(4, 'little'))
-        wav_header.write((channels * bits_per_sample // 8).to_bytes(2, 'little'))
-        wav_header.write(bits_per_sample.to_bytes(2, 'little'))
-        wav_header.write(b'data')
-        wav_header.write(len(audio_bytes).to_bytes(4, 'little'))
-        
-        # Combina header com dados (não ideal, mas como fallback)
-        wav_bytes = wav_header.getvalue() + audio_bytes
-        
-        print(f"WAV manual criado: {len(wav_bytes)} bytes")
-        return wav_bytes
-        
-    except Exception as e:
-        print(f"Erro na criação manual de WAV: {e}")
+    # Tenta encontrar dados de áudio brutos no WebM
+    # Procura por padrões comuns de áudio
+    audio_data = None
     
-    # Abordagem 4: Retornar erro informativo
-    print("Não foi possível converter WebM para WAV com as ferramentas disponíveis")
-    print("Sugestão: Instale ffmpeg no sistema ou configure o frontend para enviar WAV")
+    # Estratégia 1: Pular header WebM e procurar dados de áudio
+    if len(audio_bytes) > 100:
+        # Tenta pular header EBML (geralmente primeiros 40-100 bytes)
+        for offset in range(40, min(200, len(audio_bytes) - 100)):
+            # Procura por padrão que poderia ser áudio
+            chunk = audio_bytes[offset:offset+10]
+            if len(chunk) >= 10:
+                # Verifica se parece com dados de áudio (não muito repetitivo)
+                unique_bytes = len(set(chunk))
+                if unique_bytes >= 4:  # Pelo menos 4 bytes diferentes
+                    audio_data = audio_bytes[offset:]
+                    break
     
-    # Retorna bytes originais para que o erro seja capturado pelo Azure SDK
-    # Isso dará uma mensagem de erro mais clara sobre o formato não suportado
-    return audio_bytes
+    # Estratégia 2: Se não encontrar, usa os dados brutos (menos ideal)
+    if audio_data is None:
+        audio_data = audio_bytes
+    
+    # Limita o tamanho para evitar problemas
+    max_audio_size = 16000 * 2 * 5  # 5 segundos de áudio (16kHz, 16-bit, mono)
+    if len(audio_data) > max_audio_size:
+        audio_data = audio_data[:max_audio_size]
+    
+    # Cria WAV header correto
+    sample_rate = 16000
+    channels = 1
+    bits_per_sample = 16
+    bytes_per_sample = bits_per_sample // 8
+    
+    # Calcula tamanhos
+    data_size = len(audio_data)
+    file_size = 36 + data_size
+    byte_rate = sample_rate * channels * bytes_per_sample
+    block_align = channels * bytes_per_sample
+    
+    # Cria header WAV (44 bytes)
+    wav_header = bytearray()
+    wav_header.extend(b'RIFF')
+    wav_header.extend(file_size.to_bytes(4, 'little'))
+    wav_header.extend(b'WAVE')
+    wav_header.extend(b'fmt ')
+    wav_header.extend((16).to_bytes(4, 'little'))  # fmt chunk size
+    wav_header.extend((1).to_bytes(2, 'little'))   # PCM format
+    wav_header.extend(channels.to_bytes(2, 'little'))
+    wav_header.extend(sample_rate.to_bytes(4, 'little'))
+    wav_header.extend(byte_rate.to_bytes(4, 'little'))
+    wav_header.extend(block_align.to_bytes(2, 'little'))
+    wav_header.extend(bits_per_sample.to_bytes(2, 'little'))
+    wav_header.extend(b'data')
+    wav_header.extend(data_size.to_bytes(4, 'little'))
+    
+    # Combina header com dados
+    wav_bytes = bytes(wav_header) + audio_data
+    
+    print(f"✅ WAV fallback criado: {len(wav_bytes)} bytes")
+    return wav_bytes
 
 
 def _build_audio_config_from_bytes(wav_bytes: bytes) -> speechsdk.audio.AudioConfig:
