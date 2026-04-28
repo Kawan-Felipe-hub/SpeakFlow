@@ -16,9 +16,16 @@ export const ChatBubble = ({ message, showPronunciation = true, autoplay = false
 
   useEffect(() => {
     if (autoplay && message.audio_url && audioRef.current) {
-      audioRef.current.play().catch(err => {
-        console.log('Autoplay prevented by browser:', err);
-      });
+      // Tenta reproduzir com um pequeno delay para garantir que o componente está montado
+      const timer = setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch(err => {
+            console.log('Autoplay prevented by browser:', err);
+          });
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [autoplay, message.audio_url]);
   
@@ -50,6 +57,7 @@ export const ChatBubble = ({ message, showPronunciation = true, autoplay = false
               controls 
               className="mt-2 w-full h-8"
               src={message.audio_url}
+              preload="metadata"
             >
               Your browser does not support the audio element.
             </audio>
