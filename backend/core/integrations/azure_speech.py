@@ -292,6 +292,38 @@ def _process_result(result) -> SpeechAssessmentResult:
     )
 
 
+def _process_result_with_transcript(result, original_transcript: str) -> SpeechAssessmentResult:
+    """Process pronunciation assessment result but keep original transcript."""
+    # Tratamento robusto de erro para PronunciationAssessmentResult
+    try:
+        pa_result = speechsdk.PronunciationAssessmentResult(result)
+        overall = float(pa_result.pronunciation_score) if pa_result.pronunciation_score is not None else None
+        accuracy = float(pa_result.accuracy_score) if pa_result.accuracy_score is not None else None
+        fluency = float(pa_result.fluency_score) if pa_result.fluency_score is not None else None
+        completeness = float(pa_result.completeness_score) if pa_result.completeness_score is not None else None
+    except AttributeError as e:
+        print(f"Erro ao acessar atributos do PronunciationAssessmentResult: {e}")
+        # Valores padrão quando o assessment falha
+        overall = None
+        accuracy = None
+        fluency = None
+        completeness = None
+
+    # Best-effort raw JSON
+    raw_json = result.properties.get(speechsdk.PropertyId.SpeechServiceResponse_JsonResult, "")
+    raw, words = _parse_pronunciation_json(raw_json)
+
+    return SpeechAssessmentResult(
+        transcript=original_transcript,  # Use the clean transcript
+        overall_score=overall,
+        accuracy_score=accuracy,
+        fluency_score=fluency,
+        completeness_score=completeness,
+        word_scores=words,
+        raw=raw,
+    )
+
+
 def _recognize_and_assess_sync(
     *,
     wav_bytes: bytes,
@@ -318,23 +350,30 @@ def _recognize_and_assess_sync(
 
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        # Pronunciation Assessment configuration - use phoneme assessment for free-form speech
-        pa_config = speechsdk.PronunciationAssessmentConfig(
-            reference_text="*",  # Use asterisk for phoneme-based assessment
-            grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-            granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
-            enable_miscue=False,  # Disable miscue for free-form
-        )
-        pa_config.apply_to(recognizer)
-
-        result = recognizer.recognize_once()
+        # First, get clean transcript without pronunciation assessment
+        clean_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        result = clean_recognizer.recognize_once()
         
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            print("Reconhecimento bem-sucedido com formato original")
-            return _process_result(result)
+            transcript = result.text or ""
+            print(f"Transcript limpo: '{transcript}'")
+            
+            # Now apply pronunciation assessment separately if needed
+            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+            pa_config = speechsdk.PronunciationAssessmentConfig(
+                reference_text=transcript if transcript else " ",  # Use the actual transcript
+                grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
+                granularity=speechsdk.PronunciationAssessmentGranularity.Word,
+                enable_miscue=True,
+            )
+            pa_config.apply_to(recognizer)
+            pa_result = recognizer.recognize_once()
+            
+            # Return result with pronunciation assessment but original transcript
+            return _process_result_with_transcript(pa_result, transcript)
         else:
-            print(f"Falha com formato original: {result.reason}, tentando converter para WAV")
-            raise RuntimeError("Formato não suportado, tentando conversão")
+            print(f"Falha no reconhecimento: {result.reason}")
+            raise RuntimeError("Falha no reconhecimento de fala")
             
     except Exception as e:
         print(f"Erro com formato original: {e}, tentando converter para WAV")
@@ -352,48 +391,39 @@ def _recognize_and_assess_sync(
 
     recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    # Pronunciation Assessment configuration - use phoneme assessment for free-form speech
-    # Note: For free-tier constraints and SDK variations, keep config minimal.
-    pa_config = speechsdk.PronunciationAssessmentConfig(
-        reference_text="*",  # Use asterisk for phoneme-based assessment
-        grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-        granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
-        enable_miscue=False,  # Disable miscue for free-form
-    )
-    pa_config.apply_to(recognizer)
-
-    result = recognizer.recognize_once()
-
-    transcript = result.text or ""
-
-    # Tratamento robusto de erro para PronunciationAssessmentResult
-    try:
-        pa_result = speechsdk.PronunciationAssessmentResult(result)
-        overall = float(pa_result.pronunciation_score) if pa_result.pronunciation_score is not None else None
-        accuracy = float(pa_result.accuracy_score) if pa_result.accuracy_score is not None else None
-        fluency = float(pa_result.fluency_score) if pa_result.fluency_score is not None else None
-        completeness = float(pa_result.completeness_score) if pa_result.completeness_score is not None else None
-    except AttributeError as e:
-        print(f"Erro ao acessar atributos do PronunciationAssessmentResult: {e}")
-        # Valores padrão quando o assessment falha
-        overall = None
-        accuracy = None
-        fluency = None
-        completeness = None
-
-    # Best-effort raw JSON
-    raw_json = result.properties.get(speechsdk.PropertyId.SpeechServiceResponse_JsonResult, "")
-    raw, words = _parse_pronunciation_json(raw_json)
-
-    return SpeechAssessmentResult(
-        transcript=transcript,
-        overall_score=overall,
-        accuracy_score=accuracy,
-        fluency_score=fluency,
-        completeness_score=completeness,
-        word_scores=words,
-        raw=raw,
-    )
+    # First, get clean transcript without pronunciation assessment
+    clean_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    result = clean_recognizer.recognize_once()
+    
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        transcript = result.text or ""
+        print(f"Transcript limpo (WAV): '{transcript}'")
+        
+        # Now apply pronunciation assessment separately if needed
+        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        pa_config = speechsdk.PronunciationAssessmentConfig(
+            reference_text=transcript if transcript else " ",  # Use the actual transcript
+            grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
+            granularity=speechsdk.PronunciationAssessmentGranularity.Word,
+            enable_miscue=True,
+        )
+        pa_config.apply_to(recognizer)
+        pa_result = recognizer.recognize_once()
+        
+        # Return result with pronunciation assessment but original transcript
+        return _process_result_with_transcript(pa_result, transcript)
+    else:
+        print(f"Falha no reconhecimento (WAV): {result.reason}")
+        # Return basic result without pronunciation assessment
+        return SpeechAssessmentResult(
+            transcript="",
+            overall_score=None,
+            accuracy_score=None,
+            fluency_score=None,
+            completeness_score=None,
+            word_scores=[],
+            raw={"error": "Recognition failed"},
+        )
 
 
 async def recognize_and_assess(
