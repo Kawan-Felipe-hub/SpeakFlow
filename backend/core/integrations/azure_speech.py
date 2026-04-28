@@ -331,99 +331,86 @@ def _recognize_and_assess_sync(
     region: str,
     language: str = "en-US",
     timeout_s: float = 20.0,
-    content_type: str = "audio/webm",
+    content_type: str = "audio/wav",
 ) -> SpeechAssessmentResult:
-    """Synchronous Azure Speech recognition with pronunciation assessment."""
-    # Tenta usar WebM/Opus diretamente com Azure Speech SDK
-    # Azure Speech SDK suporta WAV, OGG, MP3, e outros formatos
-    # Se falhar, tenta converter para WAV
-    try:
-        print(f"Tentando usar formato original: {content_type}")
-        speech_config = _build_speech_config(key=key, region=region, language=language)
-        
-        # Create audio config from bytes using PushAudioInputStream
-        import io
-        audio_stream = speechsdk.audio.PushAudioInputStream()
-        audio_stream.write(wav_bytes)
-        audio_stream.close()
-        audio_config = speechsdk.AudioConfig(stream=audio_stream)
 
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    speech_config = _build_speech_config(key=key, region=region, language=language)
 
-        # First, get clean transcript without pronunciation assessment
-        clean_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-        result = clean_recognizer.recognize_once()
-        
-        if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            transcript = result.text or ""
-            print(f"Transcript limpo: '{transcript}'")
-            
-            # Now apply pronunciation assessment separately if needed
-            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-            pa_config = speechsdk.PronunciationAssessmentConfig(
-                reference_text=transcript if transcript else " ",  # Use the actual transcript
-                grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-                granularity=speechsdk.PronunciationAssessmentGranularity.Word,
-                enable_miscue=True,
-            )
-            pa_config.apply_to(recognizer)
-            pa_result = recognizer.recognize_once()
-            
-            # Return result with pronunciation assessment but original transcript
-            return _process_result_with_transcript(pa_result, transcript)
-        else:
-            print(f"Falha no reconhecimento: {result.reason}")
-            raise RuntimeError("Falha no reconhecimento de fala")
-            
-    except Exception as e:
-        print(f"Erro com formato original: {e}, tentando converter para WAV")
-        # Se falhar, converte para WAV
-        wav_bytes = _convert_webm_to_wav(wav_bytes, content_type)
-        
-        speech_config = _build_speech_config(key=key, region=region, language=language)
-    
-    # Create audio config from bytes using PushAudioInputStream for better compatibility
-    import io
-    audio_stream = speechsdk.audio.PushAudioInputStream()
-    audio_stream.write(wav_bytes)
-    audio_stream.close()
-    audio_config = speechsdk.AudioConfig(stream=audio_stream)
+    # ✅ formato explícito — 16kHz mono 16-bit (igual ao frontend)
+    formato = speechsdk.audio.AudioStreamFormat(
+        samples_per_second=16000,
+        bits_per_sample=16,
+        channels=1,
+    )
+    stream = speechsdk.audio.PushAudioInputStream(stream_format=formato)
+    stream.write(wav_bytes)
+    stream.close()
 
-    recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    audio_config = speechsdk.AudioConfig(stream=stream)
 
-    # First, get clean transcript without pronunciation assessment
-    clean_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-    result = clean_recognizer.recognize_once()
-    
+    # ✅ um único recognizer com pronunciation assessment já aplicado
+    pa_config = speechsdk.PronunciationAssessmentConfig(
+        grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
+        granularity=speechsdk.PronunciationAssessmentGranularity.Word,
+        enable_miscue=False,  # False quando não há reference_text
+    )
+
+    recognizer = speechsdk.SpeechRecognizer(
+        speech_config=speech_config,
+        audio_config=audio_config,
+    )
+    pa_config.apply_to(recognizer)
+
+    result = recognizer.recognize_once()
+
     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
         transcript = result.text or ""
-        print(f"Transcript limpo (WAV): '{transcript}'")
-        
-        # Now apply pronunciation assessment separately if needed
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-        pa_config = speechsdk.PronunciationAssessmentConfig(
-            reference_text=transcript if transcript else " ",  # Use the actual transcript
-            grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-            granularity=speechsdk.PronunciationAssessmentGranularity.Word,
-            enable_miscue=True,
-        )
-        pa_config.apply_to(recognizer)
-        pa_result = recognizer.recognize_once()
-        
-        # Return result with pronunciation assessment but original transcript
-        return _process_result_with_transcript(pa_result, transcript)
-    else:
-        print(f"Falha no reconhecimento (WAV): {result.reason}")
-        # Return basic result without pronunciation assessment
+        print(f"STT OK. Transcript: '{transcript}'")
+
+        pa_result = speechsdk.PronunciationAssessmentResult(result)
+        scores = {
+            "overall": pa_result.pronunciation_score,
+            "accuracy": pa_result.accuracy_score,
+            "fluency": pa_result.fluency_score,
+            "completeness": pa_result.completeness_score,
+        }
+        print(f"Pronunciation scores: {scores}")
+
+        word_scores = [
+            {
+                "word": w.word,
+                "accuracy": w.accuracy_score,
+                "error_type": w.error_type,
+            }
+            for w in pa_result.words
+        ]
+
         return SpeechAssessmentResult(
-            transcript="",
-            overall_score=None,
-            accuracy_score=None,
-            fluency_score=None,
-            completeness_score=None,
-            word_scores=[],
-            raw={"error": "Recognition failed"},
+            transcript=transcript,
+            overall_score=scores["overall"],
+            accuracy_score=scores["accuracy"],
+            fluency_score=scores["fluency"],
+            completeness_score=scores["completeness"],
+            word_scores=word_scores,
+            raw=scores,
         )
+
+    # debug detalhado se falhar
+    print(f"STT falhou. Reason: {result.reason}")
+    if result.reason == speechsdk.ResultReason.Canceled:
+        detail = speechsdk.CancellationDetails(result)
+        print(f"Cancelado: {detail.reason}")
+        print(f"Erro detalhado: {detail.error_details}")
+
+    return SpeechAssessmentResult(
+        transcript="",
+        overall_score=None,
+        accuracy_score=None,
+        fluency_score=None,
+        completeness_score=None,
+        word_scores=[],
+        raw={"error": str(result.reason)},
+    )
 
 
 async def recognize_and_assess(
@@ -433,7 +420,7 @@ async def recognize_and_assess(
     region: str,
     language: str = "en-US",
     timeout_s: float = 20.0,
-    content_type: str = "audio/webm",
+    content_type: str = "audio/wav",
 ) -> SpeechAssessmentResult:
     """
     Async wrapper: runs Azure Speech SDK (sync) in a thread.
