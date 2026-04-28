@@ -255,7 +255,10 @@ async def post_message(
         
         if audio is None:
             print("ERRO: Arquivo de áudio não enviado")
+            print(f"Request FILES: {list(request.FILES.keys())}")
             return 400, ErrorOut(detail="Arquivo de áudio é obrigatório.")
+        
+        print(f"Áudio recebido: {audio.name}, tamanho: {audio.size}, tipo: {audio.content_type}")
         
         user = require_user(request)
         print(f"User authenticated: {user.username}")
