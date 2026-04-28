@@ -13,11 +13,9 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import HttpRequest
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from ninja import NinjaAPI, Router
 from ninja.files import UploadedFile
 from rest_framework_simplejwt.tokens import RefreshToken
-from corsheaders.decorators import cors_exempt
 
 from core.auth import SimpleJWTAuth
 from core.integrations.azure_speech import recognize_and_assess, synthesize_tts
