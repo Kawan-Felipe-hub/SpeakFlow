@@ -180,7 +180,7 @@ def delete_session(request: HttpRequest, session_id: int) -> tuple[int, None] | 
     return 204, None
 
 
-@router.get("/media/{file_path:path}")
+@router.get("/media/{file_path}")
 def serve_media(request, file_path: str):
     """Serve media files (audio files) directly."""
     try:
