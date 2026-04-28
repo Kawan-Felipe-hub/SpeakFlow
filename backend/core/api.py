@@ -296,7 +296,7 @@ async def post_message(
         # Log das variáveis de ambiente para debug
         azure_key = os.environ.get("AZURE_SPEECH_KEY", "")
         azure_region = os.environ.get("AZURE_SPEECH_REGION", "")
-        azure_language = os.environ.get("AZURE_SPEECH_LANGUAGE", "pt-BR")
+        azure_language = os.environ.get("AZURE_SPEECH_LANGUAGE", "en-US")
         
         print(f"AZURE_SPEECH_KEY (primeiros 10 chars): {azure_key[:10] if azure_key else 'NOT SET'}")
         print(f"AZURE_SPEECH_REGION: {azure_region}")
