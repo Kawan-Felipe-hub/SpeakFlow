@@ -11,9 +11,10 @@ from django.contrib.auth import authenticate
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.http import HttpRequest
+from django.http import HttpRequest as DjangoHttpRequest
+HttpRequest = DjangoHttpRequest  # Alias for type hints
 from django.views.decorators.csrf import csrf_exempt
-from ninja import NinjaAPI, Router
+from ninja import NinjaAPI, Router, Body
 from ninja.files import UploadedFile
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -49,15 +50,18 @@ def issue_tokens(user: User) -> TokenOut:
 
 @router.post("/auth/register/", response={201: TokenOut, 400: ErrorOut, 500: ErrorOut}, auth=None)
 @csrf_exempt
-def register(request: HttpRequest, payload: RegisterIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
+def register(request):
     try:
-        if User.objects.filter(username=payload.username).exists():
+        import json
+        data = json.loads(request.body)
+        
+        if User.objects.filter(username=data.get('username')).exists():
             return 400, ErrorOut(detail="Username already exists.")
-        if User.objects.filter(email=payload.email).exists():
+        if User.objects.filter(email=data.get('email')).exists():
             return 400, ErrorOut(detail="Email already exists.")
 
-        user = User(username=payload.username, email=payload.email)
-        user.set_password(payload.password)
+        user = User(username=data.get('username'), email=data.get('email'))
+        user.set_password(data.get('password'))
         user.full_clean()  # Validate before saving
         user.save()
         return 201, issue_tokens(user)
@@ -70,7 +74,7 @@ def register(request: HttpRequest, payload: RegisterIn) -> tuple[int, TokenOut] 
 
 @router.post("/auth/login/", response={200: TokenOut, 401: ErrorOut, 500: ErrorOut}, auth=None)
 @csrf_exempt
-def login(request: HttpRequest, payload: LoginIn) -> tuple[int, TokenOut] | tuple[int, ErrorOut]:
+def login(request, payload):
     try:
         user = authenticate(request, username=payload.username, password=payload.password)
         if user is None:
@@ -83,7 +87,7 @@ def login(request: HttpRequest, payload: LoginIn) -> tuple[int, TokenOut] | tupl
         return 500, ErrorOut(detail=f"Login failed: {str(e)}")
 
 
-def require_user(request: HttpRequest) -> User:
+def require_user(request) -> User:
     user = getattr(request, "user", None)
     if user is None or not getattr(user, "is_authenticated", False):
         raise PermissionError("Authentication required")
@@ -91,7 +95,7 @@ def require_user(request: HttpRequest) -> User:
 
 
 @router.get("/sessions/", response=list[VoiceSessionOut])
-def list_sessions(request: HttpRequest) -> list[VoiceSessionOut]:
+def list_sessions(request) -> list[VoiceSessionOut]:
     user = require_user(request)
     qs = VoiceSession.objects.filter(user=user).order_by("-started_at")
     return [
