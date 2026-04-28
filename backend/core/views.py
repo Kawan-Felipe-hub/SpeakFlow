@@ -274,25 +274,20 @@ async def session_message_view(request: HttpRequest, session_id: int) -> JsonRes
         audio_bytes = audio_file.read()
         logger.info(f"Audio received: {len(audio_bytes)} bytes")
         
-        # Step 1: Mock transcription (Azure working but using mock for now)
-        logger.info("Step 1: Creating transcription")
-        azure_result = type('MockResult', (), {
-            'transcript': 'Hello world, how are you today?',
-            'overall_score': 85.0,
-            'accuracy_score': 85.0,
-            'fluency_score': 80.0,
-            'completeness_score': 90.0,
-            'word_scores': [
-                type('WordScore', (), {'word': 'Hello', 'accuracy_score': 90.0, 'error_type': None})(),
-                type('WordScore', (), {'word': 'world', 'accuracy_score': 85.0, 'error_type': None})(),
-                type('WordScore', (), {'word': 'how', 'accuracy_score': 80.0, 'error_type': None})(),
-                type('WordScore', (), {'word': 'are', 'accuracy_score': 88.0, 'error_type': None})(),
-                type('WordScore', (), {'word': 'you', 'accuracy_score': 82.0, 'error_type': None})(),
-                type('WordScore', (), {'word': 'today', 'accuracy_score': 86.0, 'error_type': None})()
-            ],
-            'raw': {}
-        })()
-        logger.info("Transcription created successfully")
+        # Step 1: Transcribe and assess pronunciation with Azure
+        logger.info("Step 1: Starting Azure transcription")
+        content_type = audio_file.content_type if hasattr(audio_file, 'content_type') else 'audio/webm'
+        logger.info(f"Audio content type: {content_type}")
+        
+        azure_result = await recognize_and_assess(
+            wav_bytes=audio_bytes,
+            key=os.getenv('AZURE_SPEECH_KEY'),
+            region=os.getenv('AZURE_SPEECH_REGION'),
+            language=os.getenv('AZURE_SPEECH_LANGUAGE', 'en-US'),
+            timeout_s=20.0,
+            content_type=content_type
+        )
+        logger.info(f"Azure transcription completed: '{azure_result.transcript}'")
         
         # Step 2: Get session history
         logger.info("Step 2: Getting session history")
@@ -429,59 +424,29 @@ async def session_message_view(request: HttpRequest, session_id: int) -> JsonRes
         # Read audio file bytes
         audio_bytes = audio_file.read()
         
-        # Convert WebM to PCM WAV format for Azure Speech compatibility
-        try:
-            import struct
-            
-            # Create a simple PCM WAV from WebM audio data
-            # This is a basic conversion - for production, use ffmpeg
-            sample_rate = 16000
-            channels = 1
-            bits_per_sample = 16
-            
-            # Simple conversion: treat WebM bytes as audio data and create WAV header
-            # This is not perfect but should work for testing
-            audio_data = audio_bytes
-            
-            # WAV header (44 bytes)
-            wav_header = struct.pack('<4sL4s', b'RIFF', 36 + len(audio_data), b'WAVE')
-            wav_header += struct.pack('<4sL4sHHLLHH4sL', 
-                                     b'fmt ', 16, 1, channels, sample_rate, 
-                                     sample_rate * channels * bits_per_sample // 8,
-                                     channels * bits_per_sample // 8, bits_per_sample, b'data', len(audio_data))
-            
-            wav_bytes = wav_header + audio_data
-            logger.info(f"Converted WebM to WAV: {len(wav_bytes)} bytes")
-            
-        except Exception as e:
-            logger.error(f"Audio conversion error: {str(e)}")
-            wav_bytes = audio_bytes  # Fallback to original
+        # Audio conversion is handled internally by recognize_and_assess function
+        logger.info(f"Audio received for processing: {len(audio_bytes)} bytes")
         
         # Step 1: Transcribe and assess pronunciation
         logger.info(f"Starting transcription for session {session_id}")
         
         try:
-            # Temporarily use mock transcription to test the complete flow
-            logger.info("Creating mock transcription for testing")
-            azure_result = type('MockResult', (), {
-                'transcript': 'Hello world, how are you today?',
-                'overall_score': 85.0,
-                'accuracy_score': 85.0,
-                'fluency_score': 80.0,
-                'completeness_score': 90.0,
-                'word_scores': [
-                    type('WordScore', (), {'word': 'Hello', 'accuracy_score': 90.0, 'error_type': None})(),
-                    type('WordScore', (), {'word': 'world', 'accuracy_score': 85.0, 'error_type': None})(),
-                    type('WordScore', (), {'word': 'how', 'accuracy_score': 80.0, 'error_type': None})(),
-                    type('WordScore', (), {'word': 'are', 'accuracy_score': 88.0, 'error_type': None})(),
-                    type('WordScore', (), {'word': 'you', 'accuracy_score': 82.0, 'error_type': None})(),
-                    type('WordScore', (), {'word': 'today', 'accuracy_score': 86.0, 'error_type': None})()
-                ],
-                'raw': {}
-            })()
-            logger.info("Mock transcription created successfully")
+            # Transcribe and assess pronunciation with Azure
+            logger.info("Starting Azure transcription")
+            content_type = audio_file.content_type if hasattr(audio_file, 'content_type') else 'audio/webm'
+            logger.info(f"Audio content type: {content_type}")
+            
+            azure_result = await recognize_and_assess(
+                wav_bytes=audio_bytes,
+                key=os.getenv('AZURE_SPEECH_KEY'),
+                region=os.getenv('AZURE_SPEECH_REGION'),
+                language=os.getenv('AZURE_SPEECH_LANGUAGE', 'en-US'),
+                timeout_s=20.0,
+                content_type=content_type
+            )
+            logger.info(f"Azure transcription completed: '{azure_result.transcript}'")
         except Exception as e:
-            logger.error(f"Error creating mock transcription: {str(e)}")
+            logger.error(f"Error in Azure transcription: {str(e)}")
             raise
         
         if azure_result.transcript == "":
