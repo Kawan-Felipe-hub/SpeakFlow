@@ -1,5 +1,42 @@
 import { useState, useRef, useCallback } from 'react';
-import { getWaveBlob } from 'webm-to-wav-converter';
+
+function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  const numChannels = 1; // mono — melhor pro Azure
+  const sampleRate = buffer.sampleRate;
+  const samples = buffer.getChannelData(0); // pega só canal esquerdo
+  const dataLength = samples.length * 2; // 16-bit = 2 bytes por sample
+  const wavBuffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(wavBuffer);
+
+  // WAV header
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);          // chunk size
+  view.setUint16(20, 1, true);           // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);           // block align
+  view.setUint16(34, 16, true);          // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // Converte float32 → int16
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+
+  return wavBuffer;
+}
 
 export interface UseVoiceRecorderReturn {
   isRecording: boolean;
@@ -85,30 +122,34 @@ export const useVoiceRecorder = (): UseVoiceRecorderReturn => {
           setError('No audio data captured. Please try speaking louder or check microphone.');
           return;
         }
-        
-        const originalBlob = new Blob(audioChunksRef.current, { 
-          type: mimeType 
-        });
-        
+
+        const originalBlob = new Blob(audioChunksRef.current, { type: mimeType });
         console.log(`Original blob: ${originalBlob.size} bytes, type: ${originalBlob.type}`);
-        
-        // Convert WebM to WAV for Azure compatibility
+
         let finalBlob = originalBlob;
-        if (mimeType.includes('webm') || mimeType.includes('ogg')) {
-          try {
-            console.log('Converting WebM to WAV...');
-            const wavBlob = await getWaveBlob(originalBlob, false);
-            finalBlob = wavBlob;
-            console.log(`Converted to WAV: ${finalBlob.size} bytes, type: ${finalBlob.type}`);
-          } catch (error) {
-            console.error('Failed to convert to WAV, using original:', error);
-            // Fallback to original if conversion fails
-          }
+
+        try {
+          console.log('Converting to WAV via Web Audio API...');
+
+          // Decodifica o áudio do blob original
+          const arrayBuffer = await originalBlob.arrayBuffer();
+          const audioContext = new AudioContext({ sampleRate: 16000 }); // 16kHz = ideal pro Azure
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          // Converte AudioBuffer → WAV raw
+          const wavBuffer = audioBufferToWav(audioBuffer);
+          finalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+
+          console.log(`Converted WAV: ${finalBlob.size} bytes, type: ${finalBlob.type}`);
+          await audioContext.close();
+        } catch (err) {
+          console.error('WAV conversion failed:', err);
+          setError('Erro ao processar áudio. Tente novamente.');
+          return; // não manda áudio ruim pro backend
         }
-        
-        console.log(`Final blob: ${finalBlob.size} bytes, type: ${finalBlob.type}`);
+
         setAudioBlob(finalBlob);
-        
+
         // Stop all tracks
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
