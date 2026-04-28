@@ -180,41 +180,6 @@ def delete_session(request: HttpRequest, session_id: int) -> tuple[int, None] | 
     return 204, None
 
 
-@router.get("/media/{file_path}")
-def serve_media(request, file_path: str):
-    """Serve media files (audio files) directly."""
-    try:
-        # Security check - ensure the file path is safe
-        if '..' in file_path or file_path.startswith('/'):
-            raise Http404("Invalid file path")
-        
-        # Construct the full file path
-        full_path = Path(settings.MEDIA_ROOT) / file_path
-        
-        # Check if file exists
-        if not full_path.exists() or not full_path.is_file():
-            raise Http404("File not found")
-        
-        # Determine content type based on file extension
-        if file_path.endswith('.wav'):
-            content_type = 'audio/wav'
-        elif file_path.endswith('.mp3'):
-            content_type = 'audio/mpeg'
-        elif file_path.endswith('.webm'):
-            content_type = 'audio/webm'
-        else:
-            content_type = 'application/octet-stream'
-        
-        # Read file and serve as response
-        with open(full_path, 'rb') as f:
-            response = HttpResponse(f.read(), content_type=content_type)
-            response['Content-Length'] = full_path.stat().st_size
-            response['Content-Disposition'] = f'inline; filename="{full_path.name}"'
-            return response
-            
-    except Exception as e:
-        print(f"Error serving media file {file_path}: {str(e)}")
-        raise Http404("File not found")
 
 
 @router.get("/dashboard/stats/", response=DashboardStatsOut)
