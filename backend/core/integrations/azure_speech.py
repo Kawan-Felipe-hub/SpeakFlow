@@ -377,11 +377,11 @@ def _recognize_and_assess_sync(
         print(f"Pronunciation scores: {scores}")
 
         word_scores = [
-            {
-                "word": w.word,
-                "accuracy": w.accuracy_score,
-                "error_type": w.error_type,
-            }
+            PronunciationWordScore(
+                word=str(w.word),
+                accuracy_score=float(w.accuracy_score) if w.accuracy_score is not None else None,
+                error_type=str(w.error_type) if w.error_type is not None else None,
+            )
             for w in pa_result.words
         ]
 
