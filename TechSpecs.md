@@ -4,28 +4,30 @@
 
 O SpeakFlow é um mini ecossistema educacional de inglês com:
 - **Tutor de voz conversacional com IA (web)**: STT/TTS + avaliação de pronúncia + feedback.
-- **Flashcards + SRS (web e mobile)**: criação assistida de cards e revisões com SM-2.
-- **App mobile Flutter offline-first (companion)**: foco estrito em revisão SRS offline com sincronização (last write wins).
+- **Flashcards + SRS (web)**: criação assistida de cards e revisões com SM-2.
+- **App mobile Flutter (projeto separado)**: revisão offline-first com sincronização básica.
 
-Este documento define decisões arquiteturais, modelo de dados e fluxos críticos, visando **MVP pragmático**, **baixo custo** (free tiers) e **evolução incremental**.
+Este documento define decisões arquiteturais, modelo de dados e fluxos críticos, visando **MVP implementado**, **baixo custo** (free tiers) e **evolução incremental**.
 
 ## 1) Decisões de arquitetura (com justificativas)
 
 ### 1.1 Separação por superfícies (Web vs Mobile)
-- **Web (Next.js)** concentra o fluxo de conversa por voz (mais fácil de iterar UI/IA, menor fricção de distribuição).
-- **Mobile (Flutter)** atua como **companion offline-first** para revisões SRS, atendendo o requisito do desafio técnico sem duplicar a complexidade do tutor de voz.
+- **Web (Next.js)** concentra o fluxo de conversa por voz, dashboard e gestão de flashcards.
+- **Mobile (Flutter)** atua como **projeto independente** para revisão SRS offline-first.
 
-**Justificativa**: reduz escopo do mobile, garante entrega, e mantém o offline-first “real” em um domínio bem definido (SRS), com dados pequenos e sincronização robusta.
+**Justificativa**: reduz escopo do mobile, garante entrega do MVP web, e mantém o mobile como extensão focada.
 
 ### 1.2 Backend monolítico modular (Django 5 + Ninja)
-- Django serve como **núcleo de domínio** (usuário, sessões, cards, revisões, sync).
+- Django serve como **núcleo de domínio** (usuário, sessões, cards, revisões).
 - Django Ninja oferece **APIs tipadas e rápidas** (OpenAPI), adequadas para web e mobile.
+- **Models implementados**: User, VoiceSession, SessionMessage, FlashCard, ReviewLog.
 
 **Justificativa**: alta produtividade, ecossistema maduro, boa integração com Postgres, e simplicidade operacional no Railway.
 
 ### 1.3 Postgres como fonte de verdade + SQLite no mobile
-- **Postgres 16** é o **source of truth**.
-- **SQLite** no Flutter garante funcionamento offline e baixa latência nas revisões.
+- **Postgres 16** é o **source of truth** para web.
+- **SQLite** no Flutter para funcionamento offline das revisões.
+- **Sincronização**: API REST para pull/push de dados entre mobile e backend.
 
 **Justificativa**: Postgres é robusto para SaaS; SQLite é padrão para offline-first.
 
@@ -35,17 +37,19 @@ Este documento define decisões arquiteturais, modelo de dados e fluxos crítico
 
 **Justificativa**: melhor custo/benefício no MVP (free tiers), baixa latência (Groq) e serviços prontos (Azure).
 
-### 1.5 Contratos estáveis e observabilidade mínima
-- APIs versionadas (ex.: `/api/v1/...`) e payloads estáveis para permitir evolução independente.
+### 1.5 Contratos estáveis e observabilidade
+- APIs versionadas (ex.: `/api/v1/...`) e payloads estáveis.
+- **Schemas Django Ninja**: Tipagem forte para requests/responses.
 - Logs estruturados e métricas básicas (latência, erros por serviço).
 
 **Justificativa**: integrações STT/TTS/LLM são fontes comuns de instabilidade; instrumentação reduz tempo de debug.
 
-### 1.6 SRS: SM-2 “puro” e determinístico
-- Algoritmo SM-2 implementado em Python no backend para web.
-- No mobile, o cálculo SM-2 é feito localmente (offline) e sincronizado como eventos de revisão.
+### 1.6 SRS: SM-2 implementado
+- Algoritmo SM-2 implementado em Python no backend (models.py).
+- **FlashCard model**: campos easiness_factor, interval_days, repetitions, next_review_at.
+- **ReviewLog model**: histórico de revisões com quality_score e new_interval.
 
-**Justificativa**: algoritmo simples, determinístico e comprovado; facilita consistência entre plataformas.
+**Justificativa**: algoritmo simples, determinístico e comprovado; implementação direta nos models Django.
 
 ## 2) Diagrama de componentes (Mermaid)
 
@@ -102,44 +106,36 @@ flowchart LR
 
 ### 3.1 Autenticação e usuários
 
-#### `users`
-- `id` **uuid** (PK)
-- `email` **varchar(254)** (unique, not null)
-- `password_hash` **text** (se auth por senha; ou campos equivalentes do Django auth)
+#### `User` (Django AbstractUser)
+- `id` **int** (PK, auto-increment)
+- `username` **varchar(150)** (unique)
+- `email` **varchar(254)** (unique)
+- `password` **varchar(128)** (hash)
+- `level` **varchar(16)** (default "basic")
+- `streak_days` **int** (default 0)
+- `total_sessions` **int** (default 0)
 - `is_active` **boolean** (default true)
-- `created_at` **timestamptz** (default now)
-- `updated_at` **timestamptz**
+- `created_at` **datetime** (auto_now_add)
+- `updated_at` **datetime** (auto_now)
 
-#### `refresh_tokens` (opcional, se houver refresh token rotativo)
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK → users.id)
-- `token_hash` **text**
-- `expires_at` **timestamptz**
-- `revoked_at` **timestamptz** (nullable)
-- `created_at` **timestamptz**
+### 3.2 Conversas (sessões e mensagens)
 
-### 3.2 Conversas (sessões e turnos)
-
-#### `conversation_sessions`
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK)
+#### `VoiceSession`
+- `id` **int** (PK, auto-increment)
+- `user_id` **int** (FK → User.id)
 - `topic` **varchar(64)** (ex.: `job_interview`, `daily_meeting`, `airport`, `restaurant`, `small_talk`)
-- `level` **varchar(16)** (ex.: `basic|intermediate|advanced`)
-- `started_at` **timestamptz**
-- `ended_at` **timestamptz** (nullable)
-- `metadata` **jsonb** (nullable; device, locale, etc.)
+- `started_at` **datetime** (auto_now_add)
+- `ended_at` **datetime** (nullable)
+- `total_messages` **int** (default 0)
 
-#### `conversation_turns`
-- `id` **uuid** (PK)
-- `session_id` **uuid** (FK → conversation_sessions.id)
-- `role` **varchar(16)** (`user|tutor`)
-- `stt_text` **text** (nullable; para turnos do usuário)
-- `final_text` **text** (not null; texto exibido como “conteúdo final” do turno)
-- `llm_model` **varchar(64)** (nullable; ex.: `llama-3.3-70b`)
-- `created_at` **timestamptz**
-- `latency_ms` **int** (nullable; latência end-to-end do turno)
-- `status` **varchar(16)** (`ok|failed`)
-- `error_code` **varchar(64)** (nullable)
+#### `SessionMessage`
+- `id` **int** (PK, auto-increment)
+- `session_id` **int** (FK → VoiceSession.id)
+- `role` **varchar(16)** (`user|assistant`)
+- `text` **textfield**
+- `audio_url` **urlfield** (blank, default "")
+- `pronunciation_score` **jsonfield** (default dict, blank)
+- `created_at` **datetime** (auto_now_add)
 
 #### `pronunciation_assessments`
 - `id` **uuid** (PK)
@@ -155,73 +151,48 @@ flowchart LR
 
 ### 3.3 Flashcards e SRS
 
-#### `decks`
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK)
-- `name` **varchar(120)**
-- `created_at` **timestamptz**
+#### `FlashCard`
+- `id` **int** (PK, auto-increment)
+- `user_id` **int** (FK → User.id)
+- `front` **textfield** (prompt)
+- `back` **textfield** (resposta)
+- `easiness_factor` **floatfield** (default 2.5)
+- `interval_days` **intfield** (default 1)
+- `repetitions` **intfield** (default 0)
+- `next_review_at` **datetime** (default now)
+- `created_from_session_id` **int** (FK → VoiceSession.id, nullable)
+- `created_at` **datetime** (auto_now_add)
+- `updated_at` **datetime** (auto_now)
 
-#### `cards`
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK)
-- `deck_id` **uuid** (FK → decks.id, nullable no MVP)
-- `front` **text** (prompt)
-- `back` **text** (resposta)
-- `source_type` **varchar(32)** (`conversation_suggestion|manual`)
-- `source_ref` **uuid** (nullable; ex.: `turn_id`)
-- `language` **varchar(16)** (default `en`)
-- `created_at` **timestamptz**
-- `updated_at` **timestamptz**
+#### `ReviewLog`
+- `id` **int** (PK, auto-increment)
+- `flashcard_id` **int** (FK → FlashCard.id)
+- `reviewed_at` **datetime** (auto_now_add)
+- `quality_score` **smallintfield**
+- `new_interval` **intfield**
 
-#### `srs_states` (estado SM-2 por card)
-- `id` **uuid** (PK)
-- `card_id` **uuid** (FK → cards.id, unique)
-- `repetition` **int** (default 0)
-- `interval_days` **int** (default 1)
-- `ease_factor` **numeric(3,2)** (default 2.50)
-- `due_at` **timestamptz**
-- `last_reviewed_at` **timestamptz** (nullable)
-- `updated_at` **timestamptz**
+### 3.4 Índices e Performance
 
-#### `srs_review_events` (event sourcing leve)
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK)
-- `card_id` **uuid** (FK)
-- `quality` **smallint** (0–5)
-- `reviewed_at` **timestamptz** (momento da revisão no dispositivo/cliente)
-- `client_id` **varchar(64)** (ex.: `web|mobile:<device_id>`)
-- `client_event_id` **uuid** (idempotência; unique por client)
-- `sync_status` **varchar(16)** (`pending|synced|conflict|rejected`)
-- `created_at` **timestamptz**
-
-### 3.4 Sync (mobile)
-
-#### `client_devices` (opcional, recomendado)
-- `id` **uuid** (PK)
-- `user_id` **uuid** (FK)
-- `device_id` **varchar(128)** (unique por usuário)
-- `platform` **varchar(16)** (`android|ios`)
-- `last_seen_at` **timestamptz**
-- `created_at` **timestamptz**
-
-#### Campos de suporte a sincronização (em tabelas existentes)
-- `cards.updated_at` e `srs_states.updated_at` são essenciais para pull incremental.
-- `srs_review_events.client_event_id` permite push idempotente.
+#### Índices implementados
+- `VoiceSession`: indexes em `["user", "started_at"]` e `["topic"]`
+- `SessionMessage`: indexes em `["session", "created_at"]` e `["role"]`
+- `FlashCard`: index em `["user", "next_review_at"]`
+- `ReviewLog`: index em `["flashcard", "reviewed_at"]`
 
 ## 4) Fluxo completo da sessão de voz (Web)
 
 ### 4.1 Objetivo do fluxo
 Garantir uma experiência de conversa fluida, mitigando latência com estados visuais (“Ouvindo…”, “Transcrevendo…”, “Pensando…”), mantendo o feedback detalhado colapsado por padrão e permitindo replay do último áudio do tutor.
 
-### 4.2 Sequência ponta a ponta (turno do usuário)
+### 4.2 Sequência ponta a ponta (mensagem do usuário)
 1. **UI (Web)** inicia gravação de áudio (WebAudio/MediaRecorder).
 2. UI encerra gravação e envia áudio (ou referência) ao backend.
 3. **Backend → Azure STT**:
    - transcreve áudio em texto.
-   - retorna `stt_text`.
+   - retorna texto transcrito.
 4. **Backend → Azure Pronunciation Assessment** (no mesmo áudio):
    - retorna scores e payload bruto.
-   - persiste em `pronunciation_assessments`.
+   - persiste em `SessionMessage.pronunciation_score` (JSONField).
 5. **Backend → Groq LLM**:
    - monta prompt com contexto (tema, nível, histórico curto da sessão).
    - gera:
@@ -231,8 +202,8 @@ Garantir uma experiência de conversa fluida, mitigando latência com estados vi
 6. **Backend → Azure TTS**:
    - converte resposta do tutor em áudio.
 7. **Backend** persiste:
-   - `conversation_turns` (usuário e tutor),
-   - latências e status.
+   - `SessionMessage` (usuário e tutor),
+   - atualiza `VoiceSession.total_messages`.
 8. **UI (Web)** renderiza:
    - transcrição do usuário,
    - resposta do tutor (texto) + áudio com botão **Replay**,
@@ -246,13 +217,15 @@ Garantir uma experiência de conversa fluida, mitigando latência com estados vi
 ## 5) Estratégia de autenticação (JWT)
 
 ### 5.1 Fluxo
-- **Login** (email/senha ou magic link no futuro) retorna:
+- **Login** (username/senha) retorna:
   - `access_token` (JWT curto, ex.: 15 min)
   - `refresh_token` (opcional, ex.: 30 dias) com rotação e revogação
 - Requests autenticados incluem `Authorization: Bearer <access_token>`.
+- **Implementação**: Django Ninja schemas `LoginIn`, `TokenOut`.
 
 ### 5.2 Claims recomendadas
-- `sub`: user id (uuid)
+- `sub`: user id (int)
+- `username`
 - `email`
 - `iat`, `exp`
 - `jti`: id do token (para revogação/rotação)
@@ -266,43 +239,24 @@ Garantir uma experiência de conversa fluida, mitigando latência com estados vi
 - `POST /api/v1/auth/refresh` (se aplicável)
 - `POST /api/v1/auth/logout` (revoga refresh)
 
-## 6) Estratégia de sync offline (Flutter → Django) — Last Write Wins
+## 6) Estratégia de Mobile (Projeto Separado)
 
-### 6.1 Premissas
-- Mobile funciona 100% offline para:
-  - listar cards pendentes (cache local),
-  - revisar (SM-2 local),
-  - registrar eventos de revisão localmente.
-- Backend é fonte de verdade, mas **mobile pode produzir eventos offline**.
+### 6.1 Status Atual
+- **Localização**: `/dev/SpeakFlow_Mobile/`
+- **Independência**: Projeto Flutter separado com próprio pubspec.yaml
+- **Funcionalidades**: Login, revisão SRS offline, sincronização básica
+- **Integração**: API REST com backend Django
 
-### 6.2 Dados locais (SQLite)
-Tabelas locais sugeridas:
-- `cards` (snapshot mínimo: `id`, `front`, `back`, `updated_at`)
-- `srs_state` (estado SM-2 local por card)
-- `review_events` (fila de eventos: `client_event_id`, `card_id`, `quality`, `reviewed_at`, `created_at`, `synced_at`, `sync_error`)
-- `sync_cursor` (marca d’água: último `updated_at`/`server_sequence`)
+### 6.2 Arquitetura Mobile
+- **State Management**: Flutter Riverpod
+- **Storage Local**: SQLite para cards e revisões
+- **HTTP Client**: Dio para comunicação com backend
+- **Secure Storage**: flutter_secure_storage para tokens
 
-### 6.3 Pull (server → mobile)
-- Endpoint: `GET /api/v1/mobile/sync/pull?since=<cursor>`
-  - retorna cards e `srs_states` atualizados desde `since`.
-  - retorna novo `cursor`.
-
-### 6.4 Push (mobile → server)
-- Endpoint: `POST /api/v1/mobile/sync/push`
-  - envia lote de `review_events` (cada um com `client_event_id` para idempotência).
-  - backend aplica SM-2 no servidor (ou aplica o estado enviado com validação) e persiste `srs_review_events`.
-
-### 6.5 Resolução de conflitos (LWW)
-Política: **Last Write Wins com base no `reviewed_at` do evento local**.
-- Para cada `card_id`, ao aplicar um evento:
-  - se `reviewed_at` > `srs_states.last_reviewed_at` (ou null), aplica e atualiza estado.
-  - se `reviewed_at` <= `last_reviewed_at`, marca evento como `conflict` ou `rejected` (mas mantém log).
-
-**Observação**: LWW funciona bem porque revisões são eventos temporais; o objetivo é evitar regressão de estado por eventos atrasados.
-
-### 6.6 Idempotência e robustez
-- `client_event_id` unique no backend por `client_id` (ou global) evita duplicação.
-- Push em lote deve ser **atômico por evento**: falha de um não impede aceitar os demais, retornando status por item.
+### 6.3 Limitações Atuais
+- Sem sincronização offline-first avançada
+- Sem resolução de conflitos LWW implementada
+- Funcionalidades básicas de SRS apenas
 
 ## 7) Variáveis de ambiente necessárias
 
@@ -373,9 +327,9 @@ Política: **Last Write Wins com base no `reviewed_at` do evento local**.
   - LWW baseado em `reviewed_at`,
   - testes de contrato (mesmos parâmetros/limites do SM-2).
 
-### 8.5 Sync offline e duplicação de eventos
+### 8.5 Sync offline e duplicação de eventos (Futuro)
 - **Risco**: eventos duplicados ou perdidos em reconexões instáveis.
-- **Mitigação**:
+- **Mitigação** (planejada para versão mobile avançada):
   - idempotência com `client_event_id`,
   - retornos por item no push,
   - backoff exponencial no worker.

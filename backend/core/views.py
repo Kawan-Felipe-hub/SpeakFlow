@@ -543,6 +543,7 @@ async def session_message_view(request: HttpRequest, session_id: int) -> JsonRes
         
         # Step 6: Return structured response
         response_data = {
+            "transcript": azure_result.transcript,
             "reply_text": tutor_response.get('reply_text', ''),
             "reply_audio_url": reply_audio_url,
             "corrections": tutor_response.get('corrections', []),

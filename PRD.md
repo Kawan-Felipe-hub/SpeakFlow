@@ -56,11 +56,11 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 - **Sessões de conversa por voz** com papéis/temas (ex.: entrevista, viagem, small talk).
 - **STT** (fala → texto) e **TTS** (texto → fala) via Azure Speech.
 - Estados de Feedback visual: Exibição de loaders específicos ('Ouvindo...', 'Transcrevendo...', 'Pensando...') para mitigar a percepção de latência.
-- **Pronunciation Assessment** para cada turno falado do usuário:
+- **Pronunciation Assessment** para cada mensagem falada do usuário:
   - precisão (accuracy), fluência (fluency), completude (completeness), prosódia (se disponível no tier), e/ou score geral.
-- **Feedback pós-turno**:
+- **Feedback pós-mensagem**:
   - correções sugeridas (frase natural), erros comuns, 1 dica objetiva.
-  - 1–3 “melhorias” de pronúncia/vocabulário do turno.
+  - 1–3 "melhorias" de pronúncia/vocabulário da mensagem.
 - Controle de Feedback: O feedback detalhado de correções e dicas deve ser exibido de forma colapsada por padrão, permitindo que o usuário foque na fluência da conversa sem interrupções cognitivas.
 - Funcionalidade de Replay: Botão para repetir o último áudio gerado pelo tutor.
 - **Histórico de sessão** (texto + áudio opcional no MVP: armazenar apenas texto e métricas inicialmente).
@@ -74,7 +74,7 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 
 #### C) Conta e billing (mínimo viável)
 - **Autenticação** (email + senha, ou magic link).
-- **Plano gratuito** com limites (ex.: minutos/dia ou sessões/semana; tokens/turnos).
+- **Plano gratuito** com limites (ex.: minutos/dia ou sessões/semana; tokens/mensagens).
 - **Pagamentos/assinatura** (pode ser simplificado no MVP: “waitlist + acesso” ou Stripe básico).
 
 #### D) SaaS Web (Next.js) com Landing Page integrada
@@ -86,21 +86,21 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 
 #### E) Backend (Django + Ninja + Postgres)
 - APIs para:
-  - usuários, sessões, turnos, métricas de pronúncia,
-  - cards, decks, revisões (SM-2).
+  - usuários, sessões, mensagens, métricas de pronúncia,
+  - flashcards, revisões (SM-2), logs de revisão.
 
-#### F) App Mobile (Flutter) — Companion App Offline-First
-- Foco exclusivo em gerenciar as revisões de flashcards, complementando o SaaS sem duplicar funcionalidades.
-- **Tela de login** (consumindo o mesmo auth do backend).
-- **Lista de cards pendentes** (carregados do backend e persistidos em SQLite localmente).
-- **Tela de revisão SRS** (frente/verso, botões 0–5, com cálculo do algoritmo SM-2 feito localmente).
-- **Sincronização assíncrona**: Indicador de status (online/offline, cards pendentes) e sync automático das revisões com o backend assim que recuperar a conexão (offline-first genuíno). Resolução de Conflitos: Implementação de política 'Last Write Wins' baseada no timestamp da revisão local para garantir integridade dos dados entre mobile e backend.
+#### F) App Mobile (Flutter) — Projeto Separado
+- **Status atual**: Projeto independente em desenvolvimento paralelo
+- **Funcionalidades planejadas**: revisão de flashcards offline-first
+- **Integração**: Conexão via API REST com backend Django
+- **Escopo atual**: Foco em revisão SRS, sem funcionalidades de conversa por voz
 
 ### 3.2 Nice-to-have (pós-MVP)
-- **App mobile Flutter com experiência voice-first completa** (no MVP, o app atua estritamente como um companion de revisão offline).
-- **Coach de pronúncia dedicado** (modo “shadowing”, minimal pairs, drilling).
+- **Integração completa com app mobile**: sincronização offline-first e funcionalidades SRS avançadas.
+- **App mobile Flutter com experiência voice-first completa** (atualmente focado apenas em revisão).
+- **Coach de pronúncia dedicado** (modo "shadowing", minimal pairs, drilling).
 - **Detecção automática de nível (CEFR)** e trilhas (A1–C2).
-- **Conteúdos estruturados** (lições, módulos) e “missões” diárias.
+- **Conteúdos estruturados** (lições, módulos) e "missões" diárias.
 - **Análise de erros recorrentes** (gramática, pronúncia, vocabulário) com plano semanal.
 - **Export/Import** de decks (Anki-like).
 - **Comunidade / buddy system**.
@@ -122,7 +122,7 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 ### US-03 — Ouvir a resposta do tutor em voz natural
 **Como** aluno, **quero** ouvir o tutor por TTS, **para** treinar compreensão e ritmo natural de conversa.
 
-### US-04 — Receber feedback pós-turno (conteúdo + correções)
+### US-04 — Receber feedback pós-mensagem (conteúdo + correções)
 **Como** aluno, **quero** receber correções e uma versão mais natural do que eu disse, **para** melhorar gramática, vocabulário e naturalidade.
 
 ### US-05 — Receber avaliação de pronúncia objetiva
@@ -145,13 +145,13 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 - A tela de conversa abre com estado “pronto para gravar”.
 
 ### AC — US-02 Falar e ser transcrito
-- O app solicita permissão do microfone (web/mobile quando aplicável).
+- O app solicita permissão do microfone (web quando aplicável).
 - O usuário consegue:
   - iniciar gravação,
   - finalizar gravação,
-  - visualizar a transcrição do turno (STT).
+  - visualizar a transcrição da mensagem (STT).
 - Se a transcrição falhar (timeout/erro), o usuário vê uma mensagem clara e pode tentar novamente.
-- O turno é persistido com:
+- A mensagem é persistida com:
   - texto transcrito,
   - timestamps (início/fim),
   - status (`ok`/`failed`).
@@ -164,8 +164,8 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
   - pausar/retomar (no mínimo stop/play no MVP).
 - Se TTS falhar, a resposta textual ainda é exibida e a UI indica indisponibilidade de áudio.
 
-### AC — US-04 Feedback pós-turno (conteúdo + correções)
-- Após cada turno do usuário, o sistema exibe um bloco de feedback contendo no mínimo:
+### AC — US-04 Feedback pós-mensagem (conteúdo + correções)
+- Após cada mensagem do usuário, o sistema exibe um bloco de feedback contendo no mínimo:
   - “Sua frase (como você disse)” (transcrição),
   - “Forma mais natural” (rewrite),
   - 1 dica curta (<= 240 caracteres) com foco em 1 melhoria.
@@ -173,28 +173,29 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
 - O feedback não deve interromper a conversa: o usuário pode seguir falando imediatamente.
 
 ### AC — US-05 Avaliação de pronúncia objetiva
-- Para cada turno do usuário, o backend armazena métricas retornadas pelo Azure Pronunciation Assessment (quando disponível no tier/config):
+- Para cada mensagem do usuário, o backend armazena métricas retornadas pelo Azure Pronunciation Assessment (quando disponível no tier/config):
   - score geral e/ou componentes (accuracy/fluency/completeness, etc.).
 - A UI mostra ao menos:
   - um score de 0–100 (ou 0–1 convertido) e
   - um rótulo interpretável (“precisa melhorar”, “bom”, “ótimo”) baseado em faixas.
-- Se o serviço estiver indisponível, o usuário vê “Pronúncia indisponível para este turno” e a conversa segue.
+- Se o serviço estiver indisponível, o usuário vê “Pronúncia indisponível para esta mensagem” e a conversa segue.
 
 ### AC — US-06 Salvar como flashcards
-- A partir do feedback do turno, o usuário pode clicar em “Salvar como card” em:
+- A partir do feedback da mensagem, o usuário pode clicar em “Salvar como card” em:
   - uma correção (frase natural) e/ou
   - uma palavra/expressão destacada.
 - Ao salvar:
-  - o card é criado no backend,
-  - um item de SRS é inicializado com parâmetros do SM-2 (ex.: `repetition=0`, `interval=1`, `ef=2.5`).
+  - o card é criado no backend com campos SM-2 (easiness_factor=2.5, interval=1, repetitions=0),
+  - vinculado à sessão atual (created_from_session),
+  - agendado para revisão (next_review_at = now + 1 dia).
 - O usuário recebe confirmação visual (ex.: “Salvo”) sem sair da conversa.
 
 ### AC — US-07 Histórico de conversas
 - O usuário consegue ver uma lista de sessões com:
-  - tema, data, duração (aprox), e um indicador de progresso (ex.: nº de turnos).
+  - tema, data, duração (aprox), e um indicador de progresso (total_messages).
 - Ao abrir uma sessão, ele vê:
-  - timeline de turnos (usuário/tutor),
-  - feedbacks e scores de pronúncia por turno.
+  - timeline de mensagens (usuário/assistant),
+  - feedbacks e scores de pronúncia por mensagem.
 - O histórico é paginado (ou lazy load) para não degradar performance.
 
 ## 6) Métricas de sucesso
@@ -222,11 +223,11 @@ Pessoas que querem **falar inglês** (trabalho, viagens, estudos) e precisam de 
   - frequência de padrões (ex.: “missing articles”, “verb tense”) ao longo do tempo (nice-to-have se exigir NLP extra).
 
 ### 6.4 Qualidade e confiabilidade
-- **Latência ponta a ponta por turno** (P50/P95):
+- **Latência ponta a ponta por mensagem** (P50/P95):
   - gravação finalizada → transcrição pronta,
   - transcrição → resposta do tutor,
   - resposta → áudio pronto.
-- **Taxa de falhas** (STT/TTS/LLM) por 100 turnos.
+- **Taxa de falhas** (STT/TTS/LLM) por 100 mensagens.
 - **Custo por usuário ativo** (especialmente STT/TTS).
 
 ### 6.5 Receita (se aplicável no MVP)
