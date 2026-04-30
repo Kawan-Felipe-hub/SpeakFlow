@@ -67,25 +67,6 @@ export default function FinalCTA() {
             ))}
           </div>
 
-          {/* Trust indicators */}
-          <div className="mt-16 pt-8 border-t border-white/20">
-            <div className="flex flex-wrap justify-center items-center gap-8 text-blue-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm">10K+ estudantes ativos</span>
-              </div>
-              <div className="hidden sm:block w-px h-4 bg-white/30"></div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm">4.8★ avaliação média</span>
-              </div>
-              <div className="hidden sm:block w-px h-4 bg-white/30"></div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm">95% taxa de sucesso</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

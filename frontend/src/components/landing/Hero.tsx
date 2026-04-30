@@ -74,30 +74,6 @@ export default function Hero() {
             </Link>
           </div>
 
-          {/* Social proof stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-3">
-                <Users className="w-6 h-6 text-blue-600 mr-2" />
-                <div className="text-3xl font-bold text-gray-900">10K+</div>
-              </div>
-              <div className="text-gray-600 font-medium">Estudantes ativos</div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-3">
-                <TrendingUp className="w-6 h-6 text-green-600 mr-2" />
-                <div className="text-3xl font-bold text-gray-900">95%</div>
-              </div>
-              <div className="text-gray-600 font-medium">Taxa de sucesso</div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-3">
-                <BookOpen className="w-6 h-6 text-blue-600 mr-2" />
-                <div className="text-3xl font-bold text-gray-900">50K+</div>
-              </div>
-              <div className="text-gray-600 font-medium">Aulas completadas</div>
-            </div>
-          </div>
         </div>
       </div>
 

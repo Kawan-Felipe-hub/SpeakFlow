@@ -100,20 +100,6 @@ export default function Features() {
             <p className="text-xl mb-8 text-blue-100">
               Junte-se a milhares de estudantes que já estão alcançando fluência com o SpeakFlow
             </p>
-            <div className="flex flex-wrap justify-center gap-6">
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3">
-                <div className="text-2xl font-bold">10K+</div>
-                <div className="text-blue-100">Estudantes ativos</div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3">
-                <div className="text-2xl font-bold">4.8★</div>
-                <div className="text-blue-100">Avaliação média</div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3">
-                <div className="text-2xl font-bold">95%</div>
-                <div className="text-blue-100">Taxa de sucesso</div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
